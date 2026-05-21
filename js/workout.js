@@ -69,6 +69,22 @@ window.WorkoutModule = (() => {
     const container = document.getElementById('workout-content');
     if (!container) return;
 
+    // Show a loading state immediately so we know render was called
+    container.innerHTML = '<div style="padding:24px;color:var(--text-muted);font-size:14px">Loading workout...</div>';
+
+    try {
+      await _renderInner(container);
+    } catch(err) {
+      container.innerHTML = `<div style="padding:24px;color:var(--accent);font-size:13px">
+        <div style="font-weight:700;margin-bottom:8px">Render error (tap to report):</div>
+        <div style="font-family:monospace;word-break:break-all">${err?.message || err}</div>
+        <button class="btn btn-primary btn-full" style="margin-top:16px" onclick="WorkoutModule.render()">Retry</button>
+      </div>`;
+      console.error('WorkoutModule render:', err);
+    }
+  }
+
+  async function _renderInner(container) {
     // --- Load data defensively — never let a DB error crash the render ---
     if (!_workout) {
       try { _workout = await DB.getTodayWorkout(); } catch(e) { _workout = null; }
