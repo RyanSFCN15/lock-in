@@ -151,6 +151,11 @@ window.SettingsModule = (() => {
       <!-- Budget Mode -->
       <div class="settings-section">
         <div class="settings-section-title">Budget Mode</div>
+        ${budgetEnabled && budgetAmt ? `
+          <div style="background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;font-size:13px;color:var(--green);font-weight:700">
+            ✓ Budget Mode Active — $${budgetAmt} CAD/week
+          </div>
+        ` : ''}
         <div class="settings-row">
           <div>
             <div style="font-weight:700;font-size:14px">Budget Meal Planning</div>
@@ -163,9 +168,12 @@ window.SettingsModule = (() => {
         </div>
         <div id="settings-budget-amount" style="${budgetEnabled ? '' : 'display:none;'}margin-top:10px">
           <label class="label">Weekly Budget (CAD $)</label>
-          <div style="display:flex;gap:8px">
-            <input type="number" id="settings-budget-input" class="input" style="flex:1" placeholder="e.g. 80" value="${budgetAmt || ''}" min="0" />
-            <button class="btn btn-primary" onclick="SettingsModule.saveBudget()">Save</button>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input type="number" id="settings-budget-input" class="input" style="flex:1" placeholder="e.g. 80" value="${budgetAmt || ''}" min="0" max="1000" step="5" />
+            <button class="btn btn-primary" onclick="SettingsModule.saveBudget()">Activate</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${[50,75,100,150,200].map(b => `<button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('settings-budget-input').value=${b}">$${b}</button>`).join('')}
           </div>
         </div>
       </div>
@@ -370,21 +378,77 @@ window.SettingsModule = (() => {
   async function saveBudget() {
     const input = document.getElementById('settings-budget-input');
     if (!input) return;
-    const val = parseFloat(input.value) || 0;
+    const val = parseFloat(input.value);
+    if (!val || val <= 0) { toast('Enter a valid budget amount', 'error'); return; }
+
     await DB.setSetting('weeklyBudget', val);
+    await DB.setSetting('budgetEnabled', true);
     window._settings.weeklyBudget = val;
+    window._settings.budgetEnabled = true;
 
     const updated = { ..._profile, weeklyBudget: val };
     await DB.saveProfile(updated);
     _profile = updated;
 
-    toast(`Weekly budget set to $${val} CAD`, 'success');
+    toast(`✓ Budget Mode active — $${val} CAD/week`, 'success', 3000);
+    // Re-render to show active state
+    await render();
   }
 
   async function saveNotif(key, value) {
+    if (value) {
+      // Request browser permission when enabling any notification
+      if ('Notification' in window) {
+        const permission = await Notification.requestPermission();
+        if (permission === 'denied') {
+          toast('Notifications blocked by browser. Enable in site settings.', 'error', 4000);
+          // Uncheck the toggle
+          const inputs = document.querySelectorAll(`input[onchange*="'${key}'"]`);
+          inputs.forEach(i => { i.checked = false; });
+          return;
+        }
+        if (permission === 'granted') {
+          // Schedule a test notification
+          new Notification('Lock In 🔒', {
+            body: 'Notifications are enabled! Stay locked in.',
+            icon: '/lock-in/icons/icon-192.png',
+          });
+          // Schedule recurring notifications based on type
+          _scheduleNotification(key);
+        }
+      } else {
+        toast('Notifications not supported in this browser', 'error', 3000);
+        return;
+      }
+    }
     await DB.setSetting(key, value);
     window._settings[key] = value;
-    toast(value ? 'Notifications enabled' : 'Notifications disabled', 'success', 1500);
+    toast(value ? 'Notifications enabled ✓' : 'Notifications disabled', value ? 'success' : '', 1500);
+  }
+
+  function _scheduleNotification(key) {
+    // Clear existing interval if any
+    if (window._notifIntervals) clearInterval(window._notifIntervals[key]);
+    if (!window._notifIntervals) window._notifIntervals = {};
+
+    const messages = {
+      notifWorkout:      { interval: 24 * 60 * 60 * 1000, body: "Time to train 💪 Log your workout!" },
+      notifWater:        { interval: 60 * 60 * 1000,       body: "💧 Drink some water — stay hydrated!" },
+      notifSupplements:  { interval: 12 * 60 * 60 * 1000,  body: "💊 Don't forget your supplements!" },
+      notifFasting:      { interval: 30 * 60 * 1000,       body: "⏱️ Check your fasting window status" },
+    };
+
+    const cfg = messages[key];
+    if (!cfg) return;
+
+    window._notifIntervals[key] = setInterval(() => {
+      if (Notification.permission === 'granted' && window._settings?.[key]) {
+        new Notification('Lock In 🔒', {
+          body: cfg.body,
+          icon: '/lock-in/icons/icon-192.png',
+        });
+      }
+    }, cfg.interval);
   }
 
   async function exportAllData() {
@@ -530,9 +594,10 @@ window.MoreModule = {
     this.currentTab = tab;
     document.querySelectorAll('#section-more .pill').forEach(p => p.classList.remove('selected'));
     if (el) el.classList.add('selected');
-    if (tab === 'progress')       { if (window.ProgressModule) ProgressModule.render(); }
-    else if (tab === 'stats')     { if (window.StatsModule)    StatsModule.render(); }
-    else if (tab === 'settings')  { if (window.SettingsModule) SettingsModule.render(); }
+    if (tab === 'progress')           { if (window.ProgressModule)  ProgressModule.render(); }
+    else if (tab === 'stats')         { if (window.StatsModule)     StatsModule.render(); }
+    else if (tab === 'achievements')  { if (window.Gamification)    Gamification.renderAchievementsPage('more-content'); }
+    else if (tab === 'settings')      { if (window.SettingsModule)  SettingsModule.render(); }
   },
 };
 

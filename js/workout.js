@@ -140,7 +140,7 @@ window.WorkoutModule = (() => {
       </div>
 
       <!-- Add exercise -->
-      <button class="btn btn-ghost btn-full" style="margin-bottom:12px" onclick="openSheet('sheet-exercise-search')">+ Add Exercise</button>
+      <button class="btn btn-ghost btn-full" style="margin-bottom:12px;min-height:48px" onclick="WorkoutModule.openExerciseSearch()">+ Add Exercise</button>
 
       <!-- Finish workout -->
       ${!_workout.completed ? `
@@ -148,8 +148,8 @@ window.WorkoutModule = (() => {
         <div class="card-title">Finish Workout</div>
         <div class="field-group" style="margin-bottom:12px">
           <label>Rating (1-10)</label>
-          <div class="pill-group">
-            ${[1,2,3,4,5,6,7,8,9,10].map(n => `<div class="pill ${_workout.rating==n?'selected':''}" onclick="WorkoutModule.setRating(${n})">${n}</div>`).join('')}
+          <div class="pill-group-rating">
+            ${[1,2,3,4,5,6,7,8,9,10].map(n => `<button type="button" class="pill pill-rating ${_workout.rating==n?'selected':''}" onclick="WorkoutModule.setRating(${n})">${n}</button>`).join('')}
           </div>
         </div>
         <div class="field-group" style="margin-bottom:12px">
@@ -314,6 +314,8 @@ window.WorkoutModule = (() => {
           toast(`🏆 NEW PR on ${ex.name}! 1RM ~${orm}kg`, 'gold', 4000);
           await Gamification.checkPRBadge();
         }
+        // Check strength badges (bodyweight milestones, load milestones)
+        await Gamification.checkStrengthBadges(ex.name, set.weight, set.reps, _profile);
         // Award XP
         for (const muscle of (ex.targetMuscles || [])) {
           await Gamification.awardMuscleXP(muscle, 15);
@@ -360,9 +362,19 @@ window.WorkoutModule = (() => {
   function setRating(n) {
     if (_workout) {
       _workout.rating = n;
-      document.querySelectorAll('.pill').forEach(p => {
-        if (p.textContent == n) p.classList.add('selected');
-        else if ([1,2,3,4,5,6,7,8,9,10].includes(parseInt(p.textContent))) p.classList.remove('selected');
+      document.querySelectorAll('.pill-rating').forEach(p => {
+        const val = parseInt(p.textContent);
+        p.classList.toggle('selected', val === n);
+        if (val === n) {
+          const col = n >= 7 ? 'var(--green)' : n >= 5 ? 'var(--yellow)' : 'var(--accent)';
+          p.style.background = col;
+          p.style.borderColor = col;
+          p.style.color = '#000';
+        } else {
+          p.style.background = '';
+          p.style.borderColor = '';
+          p.style.color = '';
+        }
       });
     }
   }
@@ -528,6 +540,10 @@ window.WorkoutModule = (() => {
 
   function openExerciseSearch() {
     openSheet('sheet-exercise-search');
+    // Clear previous search and populate full list immediately
+    const inp = document.getElementById('exercise-search-input');
+    if (inp) inp.value = '';
+    searchExercise('');
   }
 
   // ---- Volume landmarks ----

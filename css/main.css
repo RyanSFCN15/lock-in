@@ -31,7 +31,7 @@
   --shadow-accent:0 0 24px var(--accent-glow);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
 html { height: 100%; overflow: hidden; font-size: 16px; }
 
@@ -265,12 +265,14 @@ textarea {
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   color: var(--text);
-  font-size: 16px;
-  padding: 12px 14px;
+  font-size: 16px; /* 16px prevents iOS zoom */
+  padding: 13px 14px;
+  min-height: 48px;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
   -webkit-appearance: none;
   font-family: inherit;
+  touch-action: manipulation;
 }
 
 input:focus,
@@ -307,13 +309,21 @@ textarea { resize: none; min-height: 80px; }
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
   border-radius: 20px;
-  padding: 8px 16px;
+  padding: 10px 16px;
+  min-height: 44px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
   color: var(--text-muted);
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  /* Eliminate transform offset - use opacity feedback instead */
 }
 
 .pill.selected {
@@ -323,7 +333,21 @@ textarea { resize: none; min-height: 80px; }
   box-shadow: var(--shadow-accent);
 }
 
-.pill:active { transform: scale(0.95); }
+.pill:active { opacity: 0.7; }
+
+/* Rating pills for recovery (numbered 1-10) — square-ish for easy tapping */
+.pill-rating {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.pill-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pill-group-rating { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* Option cards */
 .option-cards {
@@ -362,6 +386,7 @@ textarea { resize: none; min-height: 80px; }
   justify-content: center;
   gap: 8px;
   padding: 14px 20px;
+  min-height: 48px;
   border-radius: var(--radius);
   font-size: 15px;
   font-weight: 800;
@@ -372,9 +397,11 @@ textarea { resize: none; min-height: 80px; }
   letter-spacing: 1px;
   -webkit-appearance: none;
   font-family: inherit;
+  touch-action: manipulation;
+  position: relative;
 }
 
-.btn:active { transform: scale(0.97); }
+.btn:active { transform: scale(0.97); opacity: 0.85; }
 
 .btn-primary {
   background: var(--accent);
@@ -409,8 +436,45 @@ textarea { resize: none; min-height: 80px; }
 }
 
 .btn-full { width: 100%; }
-.btn-sm { padding: 8px 14px; font-size: 13px; }
-.btn-icon { padding: 10px; width: 40px; height: 40px; border-radius: 50%; }
+.btn-sm { padding: 10px 14px; font-size: 13px; min-height: 44px; }
+.btn-icon { padding: 10px; width: 44px; height: 44px; border-radius: 50%; min-height: 44px; }
+
+/* ---- Unit toggle input ---- */
+.unit-input-wrap {
+  display: flex;
+  align-items: center;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.unit-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.unit-input-wrap input {
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+.unit-input-wrap input:focus { box-shadow: none; border: none; }
+.unit-toggle-btn {
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 12px;
+  height: 100%;
+  min-height: 44px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+.unit-toggle-btn:active { background: var(--accent); color: #fff; }
 
 /* ============================================================
    CARDS & SURFACES
@@ -420,18 +484,27 @@ textarea { resize: none; min-height: 80px; }
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 18px;
+  margin-bottom: 14px;
 }
 
 .card-title {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 1.5px;
+  letter-spacing: 2px;
   color: var(--text-muted);
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
+
+/* Sub-sections within cards */
+.card-section {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+}
+
+.card-section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
 
 .card-accent {
   border-color: var(--accent);
@@ -662,11 +735,12 @@ textarea { resize: none; min-height: 80px; }
 
 .set-row {
   display: grid;
-  grid-template-columns: 32px 1fr 1fr 56px;
+  grid-template-columns: 36px 1fr 1fr 52px;
   gap: 8px;
   align-items: center;
-  padding: 6px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
+  min-height: 54px;
 }
 
 .set-row:last-child { border-bottom: none; }
@@ -705,17 +779,22 @@ textarea { resize: none; min-height: 80px; }
 .set-complete-btn {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   color: var(--text-muted);
-  padding: 6px;
+  padding: 0;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 18px;
   width: 100%;
+  height: 44px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
+  transition: all 0.15s;
 }
 
+.set-complete-btn:active { transform: scale(0.92); }
 .set-complete-btn.done { background: var(--green); border-color: var(--green); color: #000; }
 
 /* Rest timer */
@@ -1269,15 +1348,46 @@ textarea { resize: none; min-height: 80px; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   padding-top: 4px;
 }
 
 .section-title {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 900;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
 }
+
+/* Sub-section header within a page */
+.subsection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20px 0 10px;
+}
+
+.subsection-title {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+}
+
+/* Deficit warning banner */
+.deficit-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.deficit-warning.moderate  { background: rgba(255,204,0,0.1);   border: 1px solid var(--yellow);  color: var(--yellow); }
+.deficit-warning.aggressive{ background: rgba(255,100,0,0.12);  border: 1px solid #ff6400;         color: #ff9940; }
+.deficit-warning.extreme   { background: rgba(255,59,59,0.12);  border: 1px solid var(--accent);  color: var(--accent); }
 
 /* ============================================================
    ANIMATIONS & TRANSITIONS
@@ -1546,6 +1656,117 @@ textarea { resize: none; min-height: 80px; }
 @supports (padding: max(0px)) {
   #bottom-nav { padding-bottom: max(env(safe-area-inset-bottom), 8px); }
   #onboarding .onboarding-screen { padding-top: max(env(safe-area-inset-top), 40px); }
+}
+
+/* ============================================================
+   ACHIEVEMENTS PAGE
+   ============================================================ */
+
+.achievement-list { display: flex; flex-direction: column; gap: 10px; }
+
+.achievement-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.2s;
+}
+
+.achievement-item.earned {
+  border-color: rgba(255,215,0,0.4);
+  background: rgba(255,215,0,0.04);
+}
+
+.achievement-item.locked { opacity: 0.55; }
+
+.achievement-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.achievement-icon-wrap.earned {
+  border-color: var(--gold);
+  background: rgba(255,215,0,0.08);
+  box-shadow: 0 0 16px rgba(255,215,0,0.2);
+}
+
+.achievement-info { flex: 1; min-width: 0; }
+.achievement-name { font-size: 15px; font-weight: 800; margin-bottom: 2px; }
+.achievement-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; margin-bottom: 4px; }
+.achievement-unlock { font-size: 11px; color: var(--text-dim); font-style: italic; }
+.achievement-earned-date { font-size: 11px; color: var(--gold); font-weight: 700; margin-top: 4px; }
+.achievement-status {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+.achievement-status.earned { color: var(--gold); }
+.achievement-status.locked { color: var(--text-dim); }
+
+/* Achievement category header */
+.achievement-category {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  padding: 8px 4px 4px;
+  margin-top: 8px;
+}
+
+/* Section filter tabs */
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+.filter-tabs::-webkit-scrollbar { display: none; }
+
+.filter-tab {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  min-height: 36px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+.filter-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ============================================================
+   AI MEAL ESTIMATOR
+   ============================================================ */
+
+.meal-estimator {
+  background: linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.08));
+  border: 1px solid rgba(139,92,246,0.3);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
 }
 
 /* Print — hide everything */

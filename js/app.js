@@ -84,6 +84,97 @@ window.fmtWeight = (kg, unit = 'kg') => {
   return round1(kg) + ' kg';
 };
 
+// ---- Unit toggle system ----
+// Global unit preference: 'metric' or 'imperial'
+window._unitSystem = 'metric';
+
+window.kgToLbs  = kg  => Math.round(kg  * 2.20462 * 10) / 10;
+window.lbsToKg  = lbs => Math.round(lbs / 2.20462 * 10) / 10;
+window.cmToIn   = cm  => Math.round(cm  / 2.54 * 10) / 10;
+window.inToCm   = inches => Math.round(inches * 2.54 * 10) / 10;
+
+// Render a weight input with a live kg/lbs toggle pill
+window.unitWeightInput = function(id, valueKg, opts = {}) {
+  const { placeholder = '0', step = '0.5', min = '0', max = '500', style = '' } = opts;
+  const isImp = window._unitSystem === 'imperial';
+  const displayVal = valueKg ? (isImp ? kgToLbs(valueKg) : valueKg) : '';
+  const unit = isImp ? 'lbs' : 'kg';
+  return `
+    <div class="unit-input-wrap" style="${style}">
+      <input type="number" id="${id}" data-unit="weight"
+        value="${displayVal}" placeholder="${placeholder}"
+        step="${isImp ? '1' : step}" min="${min}" max="${isImp ? max * 2.2 : max}"
+        style="flex:1;min-width:0" />
+      <button class="unit-toggle-btn" onclick="toggleUnit('weight','${id}',this)" type="button">${unit}</button>
+    </div>`;
+};
+
+// Render a length/measurement input with cm/in toggle
+window.unitLengthInput = function(id, valueCm, opts = {}) {
+  const { placeholder = '0', step = '0.5', min = '0', max = '300', style = '' } = opts;
+  const isImp = window._unitSystem === 'imperial';
+  const displayVal = valueCm ? (isImp ? cmToIn(valueCm) : valueCm) : '';
+  const unit = isImp ? 'in' : 'cm';
+  return `
+    <div class="unit-input-wrap" style="${style}">
+      <input type="number" id="${id}" data-unit="length"
+        value="${displayVal}" placeholder="${placeholder}"
+        step="${isImp ? '0.25' : step}" min="${min}" max="${isImp ? max / 2.54 : max}"
+        style="flex:1;min-width:0" />
+      <button class="unit-toggle-btn" onclick="toggleUnit('length','${id}',this)" type="button">${unit}</button>
+    </div>`;
+};
+
+// Toggle between kg/lbs or cm/in on a single input
+window.toggleUnit = function(type, inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const val = parseFloat(input.value) || 0;
+  if (type === 'weight') {
+    if (btn.textContent === 'kg') {
+      input.value = val ? kgToLbs(val) : '';
+      input.step = '1';
+      btn.textContent = 'lbs';
+    } else {
+      input.value = val ? lbsToKg(val) : '';
+      input.step = '0.5';
+      btn.textContent = 'kg';
+    }
+  } else {
+    if (btn.textContent === 'cm') {
+      input.value = val ? cmToIn(val) : '';
+      input.step = '0.25';
+      btn.textContent = 'in';
+    } else {
+      input.value = val ? inToCm(val) : '';
+      input.step = '0.5';
+      btn.textContent = 'cm';
+    }
+  }
+};
+
+// Read a weight input — always returns kg regardless of display unit
+window.readWeightKg = function(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return null;
+  const val = parseFloat(input.value);
+  if (!val) return null;
+  const btn = input.parentElement?.querySelector('.unit-toggle-btn');
+  if (btn?.textContent === 'lbs') return lbsToKg(val);
+  return val;
+};
+
+// Read a length input — always returns cm
+window.readLengthCm = function(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return null;
+  const val = parseFloat(input.value);
+  if (!val) return null;
+  const btn = input.parentElement?.querySelector('.unit-toggle-btn');
+  if (btn?.textContent === 'in') return inToCm(val);
+  return val;
+};
+
 // ---- Date helpers ----
 
 window.today = () => new Date().toISOString().split('T')[0];
@@ -141,32 +232,81 @@ window.calcTDEE = function(profile) {
 window.calcMacroTargets = function(profile, isTrainingDay = true) {
   const tdee = calcTDEE(profile);
   const goal = profile.goal;
-  const weightKg = profile.weightKg;
+  const weightKg = profile.weightKg || 80;
 
   let calorieTarget = tdee;
-  if (goal === 'bulk') {
-    calorieTarget = isTrainingDay ? Math.round(tdee * 1.15) : Math.round(tdee * 1.05);
-  } else if (goal === 'cut') {
-    calorieTarget = isTrainingDay ? Math.round(tdee * 1.05) : Math.round(tdee * 0.8);
+  let dailyDeficit = 0;
+  let deficitWarning = null; // null | 'moderate' | 'aggressive' | 'extreme'
+
+  if (goal === 'cut') {
+    // Calculate deficit required to hit the actual goal on time
+    const kgToLose = Math.max(0, (weightKg) - (profile.targetWeightKg || weightKg));
+    const weeksToGoal = Math.max(1, profile.weeksToGoal || 12);
+    // 1 kg of body fat ≈ 7700 kcal deficit
+    const requiredDeficit = kgToLose > 0
+      ? Math.round((kgToLose * 7700) / (weeksToGoal * 7))
+      : Math.round(tdee * 0.20); // Default 20% cut
+
+    dailyDeficit = requiredDeficit;
+
+    // Hard floors: never below 1200 kcal (women) or 1500 kcal (men)
+    const calorieFloor = profile.sex === 'female' ? 1200 : 1500;
+    calorieTarget = Math.max(calorieFloor, tdee - dailyDeficit);
+
+    // Warn on aggressive deficits
+    if (dailyDeficit > 1500)      deficitWarning = 'extreme';
+    else if (dailyDeficit > 1000) deficitWarning = 'aggressive';
+    else if (dailyDeficit > 750)  deficitWarning = 'moderate';
+
+    // Calorie cycling: +10% on training days, as-calculated on rest days
+    if (isTrainingDay) calorieTarget = Math.round(Math.min(tdee - 200, calorieTarget * 1.10));
+    else               calorieTarget = Math.max(calorieFloor, calorieTarget);
+
+  } else if (goal === 'bulk') {
+    // Calculate surplus required for target weight gain
+    const kgToGain = Math.max(0, (profile.targetWeightKg || weightKg) - weightKg);
+    const weeksToGoal = Math.max(1, profile.weeksToGoal || 12);
+    const requiredSurplus = kgToGain > 0
+      ? Math.round((kgToGain * 7700) / (weeksToGoal * 7))
+      : Math.round(tdee * 0.15);
+    const surplus = Math.min(requiredSurplus, 700); // Cap at 700 cal/day to minimize fat gain
+    calorieTarget = isTrainingDay ? tdee + surplus : tdee + Math.round(surplus * 0.5);
+
   } else if (goal === 'recomp') {
     calorieTarget = isTrainingDay ? Math.round(tdee * 1.05) : Math.round(tdee * 0.95);
-  } else {
-    calorieTarget = isTrainingDay ? Math.round(tdee * 1.15) : Math.round(tdee * 0.9);
+
+  } else if (goal === 'strength') {
+    calorieTarget = isTrainingDay ? Math.round(tdee * 1.10) : Math.round(tdee * 0.95);
+
+  } else if (goal === 'endurance') {
+    calorieTarget = isTrainingDay ? Math.round(tdee * 1.10) : Math.round(tdee);
   }
 
-  // Protein: 2.2g/kg for strength, 2g/kg for bulk/cut, 1.8g/kg for endurance
-  const proteinPerKg = goal === 'strength' ? 2.2 : goal === 'endurance' ? 1.8 : 2.0;
+  // Protein: 2.4g/kg for strength, 2.2g/kg for cut (muscle preservation), 2.0g for bulk/recomp, 1.8 endurance
+  const proteinPerKg = goal === 'strength' ? 2.4 : goal === 'cut' ? 2.2 : goal === 'endurance' ? 1.8 : 2.0;
   const protein = Math.round(weightKg * proteinPerKg);
 
   const proteinCals = protein * 4;
-  const fatCals = Math.round(calorieTarget * 0.25);
+  // Fat floor: 0.8g/kg for hormonal health
+  const fatFloor = Math.round(weightKg * 0.8);
+  const fatCals = Math.max(fatFloor * 9, Math.round(calorieTarget * 0.25));
   const fat = Math.round(fatCals / 9);
-  const carbs = Math.round((calorieTarget - proteinCals - fatCals) / 4);
+  const carbs = Math.max(0, Math.round((calorieTarget - proteinCals - fatCals) / 4));
 
-  // Water target: 35ml/kg
+  // Water target: 35ml/kg + 500ml per cardio session
   const waterMl = Math.round(weightKg * 35);
 
-  return { calories: calorieTarget, protein, carbs, fat, waterMl };
+  return {
+    calories: calorieTarget,
+    protein,
+    carbs,
+    fat,
+    waterMl,
+    tdee,
+    dailyDeficit,
+    deficitWarning,
+    deficitKgPerWeek: dailyDeficit > 0 ? round1(dailyDeficit * 7 / 7700) : 0,
+  };
 };
 
 // ---- Epley 1RM formula ----

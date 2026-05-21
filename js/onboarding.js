@@ -5,6 +5,7 @@
 window.Onboarding = (() => {
   let step = 0;
   let data = {};
+  let _customDays = null; // for custom split builder
 
   const TOTAL_STEPS = 12;
 
@@ -390,30 +391,146 @@ window.Onboarding = (() => {
     `;
   }
 
-  // Step 10: Custom exercises per split day
+  // Step 10: Custom exercises per split day — full interactive builder
   function buildStep10() {
     const splitType = data.splitType || 'ppl';
+    if (splitType === 'custom') {
+      return buildCustomSplitBuilder();
+    } else {
+      return buildDefaultExerciseEditor();
+    }
+  }
+
+  function _initCustomDays() {
+    if (_customDays) return;
+    if (data.customDays?.length) {
+      _customDays = JSON.parse(JSON.stringify(data.customDays));
+    } else {
+      _customDays = [
+        { name: 'Day 1', exercises: [
+          { name: 'Squat', sets: 4, reps: '5' },
+          { name: 'Bench Press', sets: 3, reps: '8-10' },
+          { name: 'Barbell Row', sets: 3, reps: '8' },
+        ]},
+        { name: 'Day 2', exercises: [
+          { name: 'Deadlift', sets: 3, reps: '5' },
+          { name: 'Overhead Press', sets: 4, reps: '6-8' },
+          { name: 'Pull-up', sets: 3, reps: '8' },
+        ]},
+        { name: 'Day 3', exercises: [
+          { name: 'Front Squat', sets: 3, reps: '6' },
+          { name: 'Incline Bench Press', sets: 3, reps: '8' },
+          { name: 'Lat Pulldown', sets: 3, reps: '10' },
+        ]},
+      ];
+    }
+  }
+
+  function buildCustomSplitBuilder() {
+    _initCustomDays();
+    return `
+      <div class="onboarding-title">Custom split.</div>
+      <div class="onboarding-subtitle">Build your training days. Name each day and add your exercises with sets & reps.</div>
+      <div class="onboarding-fields" id="custom-split-fields">
+        ${_customDays.map((day, di) => _renderCustomDay(day, di)).join('')}
+      </div>
+      <button type="button" class="btn btn-ghost btn-full" style="margin:4px 0 8px" onclick="Onboarding.addCustomDay()">+ Add Training Day</button>
+      ${navButtons()}
+    `;
+  }
+
+  function _renderCustomDay(day, di) {
+    return `
+      <div class="card" style="padding:14px">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <input type="text" value="${_esc(day.name)}" style="flex:1;font-weight:700;font-size:15px"
+            oninput="Onboarding.renameDay(${di}, this.value)" placeholder="Day name (e.g. Push)" />
+          <button type="button" class="btn btn-icon btn-ghost" style="color:var(--accent);font-size:20px;min-width:36px"
+            onclick="Onboarding.removeDay(${di})">×</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 44px 60px 36px;gap:6px;margin-bottom:6px;font-size:10px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:1px">
+          <span>Exercise</span><span style="text-align:center">Sets</span><span style="text-align:center">Reps</span><span></span>
+        </div>
+        <div id="cday-exs-${di}">
+          ${(day.exercises || []).map((ex, ei) => _renderCustomExerciseRow(di, ex, ei)).join('')}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm btn-full" style="margin-top:8px"
+          onclick="Onboarding.addExToDay(${di})">+ Exercise</button>
+      </div>
+    `;
+  }
+
+  function _renderCustomExerciseRow(di, ex, ei) {
+    return `
+      <div style="display:grid;grid-template-columns:1fr 44px 60px 36px;gap:6px;align-items:center;margin-bottom:6px" id="cex-${di}-${ei}">
+        <input type="text" value="${_esc(ex.name)}" placeholder="Exercise name"
+          oninput="Onboarding.setExName(${di},${ei},this.value)"
+          style="font-size:13px;min-height:40px" />
+        <input type="number" value="${ex.sets||3}" min="1" max="20" placeholder="3"
+          oninput="Onboarding.setExSets(${di},${ei},this.value)"
+          style="font-size:13px;text-align:center;min-height:40px;padding:4px" />
+        <input type="text" value="${_esc(ex.reps||'')}" placeholder="8-12"
+          oninput="Onboarding.setExReps(${di},${ei},this.value)"
+          style="font-size:13px;text-align:center;min-height:40px;padding:4px" />
+        <button type="button" class="btn btn-icon btn-ghost" style="font-size:18px;color:var(--text-dim);min-width:36px"
+          onclick="Onboarding.removeExFromDay(${di},${ei})">×</button>
+      </div>
+    `;
+  }
+
+  function buildDefaultExerciseEditor() {
+    const splitType = data.splitType || 'ppl';
     const split = SPLITS[splitType];
-    const trainingDays = split.days.filter(d => d !== 'Rest');
-    const uniqueDays = [...new Set(trainingDays)];
+    const uniqueDays = [...new Set(split.days.filter(d => d !== 'Rest'))];
+
+    // Initialize exercise data from defaults if needed
+    if (!data.splitExercises) {
+      data.splitExercises = {};
+      for (const day of uniqueDays) {
+        data.splitExercises[day] = [...(DEFAULT_EXERCISES[day] || ['Squat','Bench Press','Row'])];
+      }
+    }
 
     return `
       <div class="onboarding-title">Your exercises.</div>
-      <div class="onboarding-subtitle">Exercises for each training day. Edit or leave defaults.</div>
-      <div class="onboarding-fields" style="gap:20px">
-        ${uniqueDays.map(day => {
-          const defaultExs = DEFAULT_EXERCISES[day] || ['Squat','Bench Press','Row'];
-          const existing = (data.splitExercises?.[day] || defaultExs).join('\n');
-          return `
-            <div class="field-group">
-              <label>${day}</label>
-              <textarea id="ob-ex-${day.replace(/\s/g,'_')}" style="min-height:100px;font-size:13px">${existing}</textarea>
-            </div>
-          `;
-        }).join('')}
+      <div class="onboarding-subtitle">Customize exercises for each training day.</div>
+      <div class="onboarding-fields" id="default-split-fields">
+        ${uniqueDays.map(day => _renderDefaultDay(day)).join('')}
       </div>
       ${navButtons()}
     `;
+  }
+
+  function _renderDefaultDay(day) {
+    const exercises = data.splitExercises?.[day] || DEFAULT_EXERCISES[day] || [];
+    const safeId = day.replace(/\s/g,'_');
+    return `
+      <div class="card" style="padding:14px">
+        <div class="card-title">${day}</div>
+        <div id="dday-exs-${safeId}">
+          ${exercises.map((ex, ei) => `
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px" id="dex-${safeId}-${ei}">
+              <input type="text" value="${_esc(ex)}" placeholder="Exercise"
+                oninput="Onboarding.setDefEx('${day}',${ei},this.value)"
+                style="flex:1;font-size:13px;min-height:40px" />
+              <button type="button" class="btn btn-icon btn-ghost" style="font-size:18px;color:var(--text-dim)"
+                onclick="Onboarding.removeDefEx('${day}',${ei})">×</button>
+            </div>
+          `).join('')}
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm btn-full" style="margin-top:8px"
+          onclick="Onboarding.addDefEx('${day}')">+ Exercise</button>
+      </div>
+    `;
+  }
+
+  function _esc(str) {
+    return (str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function _rerenderStep10() {
+    const el = document.getElementById('onboarding');
+    if (el) el.innerHTML = buildStep(10);
   }
 
   // Step 11: Review & launch
@@ -524,23 +641,63 @@ window.Onboarding = (() => {
         if (!data.goalBuild) data.goalBuild = 'athletic';
         return true;
 
-      case 10:
-        const splitType = data.splitType || 'ppl';
-        const split = SPLITS[splitType];
-        const trainingDays = [...new Set(split.days.filter(d => d !== 'Rest'))];
-        data.splitExercises = {};
-        for (const day of trainingDays) {
-          const id = `ob-ex-${day.replace(/\s/g,'_')}`;
-          const val = document.getElementById(id)?.value || '';
-          data.splitExercises[day] = val.split('\n').map(e => e.trim()).filter(Boolean);
+      case 10: {
+        const splitType10 = data.splitType || 'ppl';
+        if (splitType10 === 'custom') {
+          // Collect custom split from _customDays state
+          if (!_customDays || !_customDays.length) {
+            toast('Add at least one training day', 'error'); return false;
+          }
+          const hasExercises = _customDays.some(d => d.exercises.some(e => e.name.trim()));
+          if (!hasExercises) {
+            toast('Add at least one exercise', 'error'); return false;
+          }
+          // Build week schedule (cycle through days, fill rest)
+          const dayNames = _customDays.map(d => d.name);
+          const weekSchedule = [];
+          for (let i = 0; i < 7; i++) {
+            weekSchedule.push(i < dayNames.length ? dayNames[i] : 'Rest');
+          }
+          data.splitExercises = {};
+          for (const day of _customDays) {
+            data.splitExercises[day.name] = day.exercises.map(e => e.name.trim()).filter(Boolean);
+          }
+          data.customDays = JSON.parse(JSON.stringify(_customDays));
+          data.split = {
+            type: 'custom',
+            name: 'Custom',
+            days: weekSchedule,
+            exercises: data.splitExercises,
+            customDays: _customDays,
+          };
+        } else {
+          // Collect default split exercises (read from inputs)
+          const split10 = SPLITS[splitType10];
+          const trainingDays = [...new Set(split10.days.filter(d => d !== 'Rest'))];
+          data.splitExercises = data.splitExercises || {};
+          for (const day of trainingDays) {
+            const safeId = day.replace(/\s/g,'_');
+            const container = document.getElementById(`dday-exs-${safeId}`);
+            if (container) {
+              const inputs = container.querySelectorAll('input[type="text"]');
+              data.splitExercises[day] = [...inputs].map(i => i.value.trim()).filter(Boolean);
+            }
+          }
+          if (!data.splitExercises || Object.keys(data.splitExercises).length === 0) {
+            data.splitExercises = {};
+            for (const day of trainingDays) {
+              data.splitExercises[day] = DEFAULT_EXERCISES[day] || ['Squat','Bench Press','Row'];
+            }
+          }
+          data.split = {
+            type: splitType10,
+            name: SPLITS[splitType10].name,
+            days: SPLITS[splitType10].days,
+            exercises: data.splitExercises,
+          };
         }
-        data.split = {
-          type: splitType,
-          name: SPLITS[splitType].name,
-          days: SPLITS[splitType].days,
-          exercises: data.splitExercises,
-        };
         return true;
+      }
 
       default:
         return true;
@@ -551,6 +708,9 @@ window.Onboarding = (() => {
 
   function selectSplit(key, el) {
     data.splitType = key;
+    // Reset exercise customizations when changing split type
+    data.splitExercises = null;
+    if (key !== 'custom') _customDays = null;
     document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
     renderSplitPreview(key);
@@ -580,6 +740,70 @@ window.Onboarding = (() => {
     data.goalBuild = key;
     document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
+  }
+
+  // ---- Custom split builder actions ----
+
+  function addCustomDay() {
+    _initCustomDays();
+    _customDays.push({ name: `Day ${_customDays.length + 1}`, exercises: [{ name: '', sets: 3, reps: '8-12' }] });
+    _rerenderStep10();
+  }
+
+  function removeDay(di) {
+    if (!_customDays || _customDays.length <= 1) { toast('Need at least 1 training day', 'error'); return; }
+    _customDays.splice(di, 1);
+    _rerenderStep10();
+  }
+
+  function renameDay(di, name) {
+    if (_customDays?.[di]) _customDays[di].name = name;
+  }
+
+  function addExToDay(di) {
+    if (!_customDays?.[di]) return;
+    _customDays[di].exercises.push({ name: '', sets: 3, reps: '8-12' });
+    _rerenderStep10();
+  }
+
+  function removeExFromDay(di, ei) {
+    if (!_customDays?.[di]) return;
+    _customDays[di].exercises.splice(ei, 1);
+    _rerenderStep10();
+  }
+
+  function setExName(di, ei, val) {
+    if (_customDays?.[di]?.exercises?.[ei]) _customDays[di].exercises[ei].name = val;
+  }
+
+  function setExSets(di, ei, val) {
+    if (_customDays?.[di]?.exercises?.[ei]) _customDays[di].exercises[ei].sets = parseInt(val) || 3;
+  }
+
+  function setExReps(di, ei, val) {
+    if (_customDays?.[di]?.exercises?.[ei]) _customDays[di].exercises[ei].reps = val;
+  }
+
+  // ---- Default split exercise actions ----
+
+  function addDefEx(day) {
+    if (!data.splitExercises) data.splitExercises = {};
+    if (!data.splitExercises[day]) data.splitExercises[day] = [...(DEFAULT_EXERCISES[day] || [])];
+    data.splitExercises[day].push('');
+    _rerenderStep10();
+  }
+
+  function removeDefEx(day, ei) {
+    if (data.splitExercises?.[day]) {
+      data.splitExercises[day].splice(ei, 1);
+      _rerenderStep10();
+    }
+  }
+
+  function setDefEx(day, ei, val) {
+    if (!data.splitExercises) data.splitExercises = {};
+    if (!data.splitExercises[day]) data.splitExercises[day] = [...(DEFAULT_EXERCISES[day] || [])];
+    data.splitExercises[day][ei] = val;
   }
 
   function next() {
@@ -638,5 +862,13 @@ window.Onboarding = (() => {
     render();
   }
 
-  return { init, next, back, finish, selectSplit, selectGoal, selectActivity, selectDiet, selectBuild };
+  return {
+    init, next, back, finish,
+    selectSplit, selectGoal, selectActivity, selectDiet, selectBuild,
+    // Custom split builder
+    addCustomDay, removeDay, renameDay, addExToDay, removeExFromDay,
+    setExName, setExSets, setExReps,
+    // Default split exercise editor
+    addDefEx, removeDefEx, setDefEx,
+  };
 })();

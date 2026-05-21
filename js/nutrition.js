@@ -137,6 +137,22 @@ window.NutritionModule = (() => {
         `;
       }).join('')}
 
+      <!-- AI Meal Estimator -->
+      <div class="card">
+        <div class="card-title">⚡ AI Meal Estimator</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Describe what you ate — AI estimates the macros instantly.</div>
+        <div class="field-group" style="margin-bottom:8px">
+          <textarea id="meal-estimate-input" placeholder="e.g. chicken sandwich with fries and a Coke, large portion" style="min-height:60px;font-size:14px"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <select id="meal-estimate-meal" style="flex:1;font-size:13px;min-height:44px">
+            ${['Breakfast','Lunch','Dinner','Snack','Pre-Workout','Post-Workout'].map(m => `<option value="${m}">${m}</option>`).join('')}
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="NutritionModule.estimateMeal()" style="min-width:90px">Estimate →</button>
+        </div>
+        <div id="meal-estimate-result" style="margin-top:4px"></div>
+      </div>
+
       <!-- AI Meal Plan -->
       <div class="card">
         <div class="card-title">🤖 AI Meal Tools</div>
@@ -518,6 +534,95 @@ window.NutritionModule = (() => {
     el.innerHTML = `<div class="ai-card"><div class="ai-card-label">📅 REFEED CHECK</div><div class="ai-card-text">${rec}</div></div>`;
   }
 
+  // ---- AI Meal Estimator ----
+
+  // Store last AI estimate for safe onclick access
+  let _lastEstimate = null;
+  let _lastEstimateMeal = 'Lunch';
+
+  async function estimateMeal() {
+    const descEl = document.getElementById('meal-estimate-input');
+    const resultEl = document.getElementById('meal-estimate-result');
+    const mealEl = document.getElementById('meal-estimate-meal');
+    if (!resultEl || !descEl) return;
+
+    const description = descEl.value.trim();
+    if (!description) { toast('Describe your meal first', 'error'); return; }
+
+    if (!AI.isAvailable()) {
+      resultEl.innerHTML = '<div style="font-size:13px;color:var(--text-muted)">Connect AI in Settings to use meal estimation.</div>';
+      return;
+    }
+
+    resultEl.innerHTML = '<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+
+    try {
+      const prompt = `Estimate the macros for this meal: "${description}".
+Reply ONLY with valid JSON in this exact format (no markdown, no extra text):
+{"name":"<short meal name>","calories":<number>,"protein":<number>,"carbs":<number>,"fat":<number>}
+Use whole numbers. Estimate realistically for typical restaurant/home portions.`;
+
+      const raw = await AI.generate(prompt, { maxLen: 200 });
+      if (!raw) throw new Error('No response');
+
+      // Parse JSON from response — find first { } block
+      const jsonMatch = raw.match(/\{[^{}]*\}/);
+      if (!jsonMatch) throw new Error('No JSON in response');
+      const estimated = JSON.parse(jsonMatch[0]);
+
+      if (!estimated.calories) throw new Error('Invalid macros');
+
+      // Store for button access
+      _lastEstimate = estimated;
+      _lastEstimateMeal = mealEl?.value || 'Lunch';
+
+      resultEl.innerHTML = `
+        <div style="background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);border-radius:var(--radius);padding:12px;margin-bottom:8px">
+          <div style="font-size:14px;font-weight:700;margin-bottom:8px">${estimated.name || description}</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;margin-bottom:10px">
+            <div><div style="font-size:18px;font-weight:900;color:var(--purple)">${estimated.calories}</div><div style="font-size:10px;color:var(--text-dim)">kcal</div></div>
+            <div><div style="font-size:18px;font-weight:900;color:var(--accent)">${estimated.protein}g</div><div style="font-size:10px;color:var(--text-dim)">protein</div></div>
+            <div><div style="font-size:18px;font-weight:900;color:var(--blue)">${estimated.carbs}g</div><div style="font-size:10px;color:var(--text-dim)">carbs</div></div>
+            <div><div style="font-size:18px;font-weight:900;color:var(--yellow)">${estimated.fat}g</div><div style="font-size:10px;color:var(--text-dim)">fat</div></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">AI estimate — may not be exact</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" style="flex:1" onclick="NutritionModule.logEstimatedMeal()">Log to ${_lastEstimateMeal}</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('meal-estimate-result').innerHTML='';document.getElementById('meal-estimate-input').value='';NutritionModule._clearEstimate()">Clear</button>
+          </div>
+        </div>
+      `;
+    } catch (e) {
+      resultEl.innerHTML = '<div style="font-size:13px;color:var(--accent)">Could not parse estimate — try being more specific (e.g. "200g chicken breast with rice").</div>';
+    }
+  }
+
+  function _clearEstimate() { _lastEstimate = null; }
+
+  async function logEstimatedMeal() {
+    const food = _lastEstimate;
+    const mealType = _lastEstimateMeal;
+    if (!food) { toast('Nothing to log', 'error'); return; }
+    const foodItem = {
+      name: food.name,
+      calories: food.calories,
+      protein: food.protein,
+      carbs: food.carbs,
+      fat: food.fat,
+      meal: mealType,
+      source: 'ai-estimate',
+    };
+    const log = await DB.getTodayNutrition() || { meals: [], water: 0 };
+    log.meals = log.meals || [];
+    log.meals.push(foodItem);
+    await DB.saveNutritionLog(log);
+    _lastEstimate = null;
+    toast(`${food.name} logged to ${mealType} ✓`, 'success', 2500);
+    document.getElementById('meal-estimate-result').innerHTML = '';
+    document.getElementById('meal-estimate-input').value = '';
+    await render();
+  }
+
   // ---- Helpers ----
 
   function getMealEmoji(meal) {
@@ -534,5 +639,6 @@ window.NutritionModule = (() => {
     removeFood, addWater, addSupplement, removeSupplement, addCaffeine,
     generateMealPlan, generateBudgetPlan, generateGroceryList, checkRefeed,
     startFast, breakFast,
+    estimateMeal, logEstimatedMeal, _clearEstimate,
   };
 })();
