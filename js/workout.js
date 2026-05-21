@@ -599,9 +599,9 @@ window.WorkoutModule = (() => {
         </button>
       `).join('')}
       ${!matches.length ? '<div style="padding:16px;color:var(--text-muted);font-size:14px">No exercises found</div>' : ''}
-      <button type="button" class="search-result-item" onclick="WorkoutModule.addCustomExercise('${(q||'').replace(/'/g,'\\'')}')">
-        <div class="search-result-name">+ Add "${q || 'Custom'}"</div>
-        <div class="search-result-meta">Custom exercise</div>
+      <button type="button" class="search-result-item" onclick="WorkoutModule.addCustomExercise()">
+        <div class="search-result-name">+ Add Custom Exercise</div>
+        <div class="search-result-meta">Name it yourself</div>
       </button>
     </div>`;
   }
@@ -623,8 +623,9 @@ window.WorkoutModule = (() => {
   }
 
   function addCustomExercise(name) {
-    if (!name) return;
-    addExercise(name.trim() || 'Custom Exercise');
+    const exerciseName = name || prompt('Exercise name:');
+    if (!exerciseName || !exerciseName.trim()) return;
+    addExercise(exerciseName.trim());
   }
 
   function openExerciseSearch() {
