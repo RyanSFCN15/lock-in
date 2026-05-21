@@ -132,7 +132,7 @@ window.NutritionModule = (() => {
                   <div class="food-item-meta">${food.protein||0}g P · ${food.carbs||0}g C · ${food.fat||0}g F</div>
                 </div>
                 <div class="food-item-cal">${food.calories||0}</div>
-                <div class="food-item-del" onclick="NutritionModule.removeFood('${mealName}', ${fi})">×</div>
+                <button type="button" class="food-item-del" onclick="NutritionModule.removeFood('${mealName}', ${fi})">×</button>
               </div>
             `).join('')}
             ${!mealFoods.length ? `<div style="font-size:13px;color:var(--text-dim);padding:4px 0">No foods logged</div>` : ''}
@@ -359,10 +359,10 @@ window.NutritionModule = (() => {
     if (!el) return;
     const quick = FOOD_DB.slice(0, 8);
     el.innerHTML = quick.map(food => `
-      <div class="search-result-item" onclick="NutritionModule.addFood(${JSON.stringify(food).replace(/"/g,'&quot;')})">
+      <button type="button" class="search-result-item" onclick="NutritionModule.addFood(${JSON.stringify(food).replace(/"/g,'&quot;')})">
         <div class="search-result-name">${food.name}</div>
         <div class="search-result-meta">${food.calories} kcal · ${food.protein}g P</div>
-      </div>
+      </button>
     `).join('');
   }
 
@@ -398,10 +398,10 @@ window.NutritionModule = (() => {
 
     results.innerHTML = `<div class="search-results">
       ${all.map(food => `
-        <div class="search-result-item" onclick="NutritionModule.addFood(${JSON.stringify(food).replace(/"/g,'&quot;')})">
+        <button type="button" class="search-result-item" onclick="NutritionModule.addFood(${JSON.stringify(food).replace(/"/g,'&quot;')})">
           <div class="search-result-name">${food.name}</div>
           <div class="search-result-meta">${food.calories} kcal · P:${food.protein}g C:${food.carbs}g F:${food.fat}g</div>
-        </div>
+        </button>
       `).join('')}
       ${!all.length ? '<div style="padding:12px;color:var(--text-muted)">No results</div>' : ''}
     </div>`;

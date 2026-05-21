@@ -48,7 +48,7 @@ window.SettingsModule = (() => {
         </div>
         ${geminiKey ? `
         <div style="background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);border-radius:var(--radius);padding:8px 12px;font-size:12px;color:var(--green);margin-bottom:8px">
-          ✓ Key saved: AIza...${geminiKey.slice(-4)}
+          ✓ Key saved: ${geminiKey.slice(0, 12)}...${geminiKey.slice(-6)}
           <button class="btn btn-ghost btn-sm" style="float:right;min-height:28px;padding:0 8px;font-size:11px;margin-top:-2px" onclick="SettingsModule.clearGeminiKey()">Remove</button>
         </div>` : ''}
         <div style="display:flex;gap:8px;margin-bottom:4px">
@@ -184,25 +184,34 @@ window.SettingsModule = (() => {
       <!-- Workout Schedule -->
       <div class="settings-section">
         <div class="settings-section-title">Weekly Workout Schedule</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Pick which days you train for each slot in your split.</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Assign a training focus to each day of the week.</div>
         ${(() => {
           const split = _profile?.split;
-          if (!split?.days) return '<div style="font-size:13px;color:var(--text-dim)">Complete onboarding to set your split first.</div>';
           const schedule = workoutSchedule || {};
-          const splitDays = split.days; // array of 7 (Mon-Sun)
+          // Build options from user's split days + a standard fallback list
+          const splitDays = split?.days || [];
+          const fromSplit = [...new Set(splitDays.filter(d => d && d !== 'Rest'))];
+          const standard = ['Push','Pull','Legs','Upper','Lower','Full Body','Arms','Chest & Triceps','Back & Biceps','Shoulders'];
+          const allOptions = fromSplit.length ? fromSplit : standard;
           const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-          return dayNames.map((day, i) => `
-            <div class="settings-row">
-              <div style="font-weight:700;font-size:14px;width:44px">${day}</div>
-              <select class="input" style="flex:1" id="sched-day-${i}"
-                onchange="SettingsModule.saveWorkoutSchedule()">
-                <option value="Rest" ${(schedule[i]||splitDays[i])==='Rest'?'selected':''}>Rest</option>
-                ${[...new Set(splitDays.filter(d=>d!=='Rest'))].map(d =>
-                  `<option value="${d}" ${(schedule[i]||splitDays[i])===d?'selected':''}>${d}</option>`
-                ).join('')}
-              </select>
-            </div>
-          `).join('');
+          // Default schedule if nothing saved yet: use split.days if available, else sensible defaults
+          const defaultDays = splitDays.length === 7 ? splitDays : ['Push','Pull','Legs','Rest','Push','Pull','Rest'];
+          return dayNames.map((day, i) => {
+            const current = schedule[i] !== undefined ? schedule[i] : (defaultDays[i] || 'Rest');
+            return `
+              <div class="settings-row">
+                <div style="font-weight:700;font-size:14px;width:44px">${day}</div>
+                <select class="input" style="flex:1" id="sched-day-${i}"
+                  onchange="SettingsModule.saveWorkoutSchedule()">
+                  <option value="Rest" ${current==='Rest'?'selected':''}>Rest</option>
+                  ${allOptions.map(d =>
+                    `<option value="${d}" ${current===d?'selected':''}>${d}</option>`
+                  ).join('')}
+                  ${!allOptions.includes(current) && current !== 'Rest' ? `<option value="${current}" selected>${current}</option>` : ''}
+                </select>
+              </div>
+            `;
+          }).join('');
         })()}
       </div>
 

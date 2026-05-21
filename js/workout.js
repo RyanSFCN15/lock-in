@@ -295,7 +295,7 @@ window.WorkoutModule = (() => {
 
         <!-- Set table header -->
         <div style="padding:8px 16px 4px;display:grid;grid-template-columns:32px 1fr 1fr 56px;gap:8px;font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:1px">
-          <span>#</span><span>WEIGHT</span><span>REPS</span><span>DONE</span>
+          <span>#</span><span>${window._unitSystem === 'imperial' ? 'LBS' : 'KG'}</span><span>REPS</span><span>DONE</span>
         </div>
 
         <div class="set-table" id="set-table-${idx}">
@@ -316,13 +316,18 @@ window.WorkoutModule = (() => {
   function renderSetRow(ex, exIdx, set, setIdx, prevSet) {
     const isCompleted = set.completed;
     const prFlag = set.isPR ? ' pr' : '';
-    const prevInfo = prevSet ? `${prevSet.weight}kg×${prevSet.reps}` : '';
+    const isImp = window._unitSystem === 'imperial';
+    // Display weight in current unit; store always in kg
+    const displayWeight = set.weight ? (isImp ? Math.round(kgToLbs(set.weight) * 10) / 10 : set.weight) : '';
+    const displayPrevW  = prevSet?.weight ? (isImp ? Math.round(kgToLbs(prevSet.weight)) : prevSet.weight) : (isImp ? '0' : '0');
+    const unitLabel = isImp ? 'lbs' : 'kg';
+    const prevInfo = prevSet ? `${displayPrevW}${unitLabel}×${prevSet.reps}` : '';
 
     return `
       <div class="set-row" id="set-row-${exIdx}-${setIdx}">
         <div class="set-num${isCompleted ? ' completed' : ''}${prFlag}">${setIdx + 1}</div>
-        <input class="set-input" type="number" step="2.5" min="0" max="500"
-          value="${set.weight || ''}" placeholder="${prevSet?.weight || '0'}"
+        <input class="set-input" type="number" step="${isImp ? '5' : '2.5'}" min="0" max="${isImp ? '1100' : '500'}"
+          value="${displayWeight}" placeholder="${displayPrevW}"
           onchange="WorkoutModule.updateSet(${exIdx}, ${setIdx}, 'weight', this.value)"
           ${isCompleted ? 'readonly' : ''} />
         <input class="set-input" type="number" min="1" max="100"
@@ -359,7 +364,14 @@ window.WorkoutModule = (() => {
 
   function updateSet(exIdx, setIdx, field, value) {
     if (!_workout?.exercises?.[exIdx]?.sets?.[setIdx]) return;
-    _workout.exercises[exIdx].sets[setIdx][field] = field === 'weight' ? parseFloat(value) : parseInt(value);
+    if (field === 'weight') {
+      const num = parseFloat(value) || 0;
+      // Always store in kg internally
+      _workout.exercises[exIdx].sets[setIdx].weight =
+        window._unitSystem === 'imperial' ? lbsToKg(num) : num;
+    } else {
+      _workout.exercises[exIdx].sets[setIdx][field] = parseInt(value);
+    }
     saveWorkout();
   }
 
@@ -576,16 +588,16 @@ window.WorkoutModule = (() => {
 
     results.innerHTML = `<div class="search-results">
       ${matches.map(ex => `
-        <div class="search-result-item" onclick="WorkoutModule.addExercise('${ex.name.replace(/'/g, "\\'")}')">
+        <button type="button" class="search-result-item" onclick="WorkoutModule.addExercise('${ex.name.replace(/'/g, "\\'")}')">
           <div class="search-result-name">${ex.name}</div>
           <div class="search-result-meta">${ex.muscles.join(' · ')} · ${ex.type}</div>
-        </div>
+        </button>
       `).join('')}
       ${!matches.length ? '<div style="padding:16px;color:var(--text-muted);font-size:14px">No exercises found</div>' : ''}
-      <div class="search-result-item" onclick="WorkoutModule.addCustomExercise('${(q||'').replace(/'/g,'\\'')}')">
+      <button type="button" class="search-result-item" onclick="WorkoutModule.addCustomExercise('${(q||'').replace(/'/g,'\\'')}')">
         <div class="search-result-name">+ Add "${q || 'Custom'}"</div>
         <div class="search-result-meta">Custom exercise</div>
-      </div>
+      </button>
     </div>`;
   }
 
