@@ -571,10 +571,10 @@ async function initApp(profile) {
     streakBadge.textContent = streak.current;
   }
 
-  // Init each module
+  // Init each module (await async inits so errors surface properly)
   try { Dashboard.init(profile); } catch(e) { console.error('Dashboard init:', e); }
-  try { WorkoutModule.init(profile); } catch(e) { console.error('Workout init:', e); }
-  try { NutritionModule.init(profile); } catch(e) { console.error('Nutrition init:', e); }
+  try { await WorkoutModule.init(profile); } catch(e) { console.error('Workout init:', e); }
+  try { await NutritionModule.init(profile); } catch(e) { console.error('Nutrition init:', e); }
   try { BodyModule.init(profile); } catch(e) { console.error('Body init:', e); }
   try { MoreModule.init(profile); } catch(e) { console.error('More init:', e); }
   try { SettingsModule.init(profile); } catch(e) { console.error('Settings init:', e); }

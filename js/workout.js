@@ -175,6 +175,7 @@ window.WorkoutModule = (() => {
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn btn-sm btn-ghost" onclick="WorkoutModule.toggleTravel()" style="${_travelMode?'border-color:var(--blue);color:var(--blue)':''}">✈️</button>
+            <button class="btn btn-sm btn-ghost" style="color:var(--text-dim);font-size:11px" onclick="WorkoutModule.discardWorkout()">Discard</button>
           </div>
         </div>
       </div>
@@ -491,6 +492,19 @@ window.WorkoutModule = (() => {
     render();
   }
 
+  async function discardWorkout() {
+    if (!confirm('Discard this workout? All logged sets will be lost.')) return;
+    _stopSessionTimer();
+    _workout = null;
+    // Delete today's workout log from DB
+    try {
+      const todayStr = today();
+      await DB.del('workoutLogs', todayStr);
+    } catch(e) {}
+    toast('Workout discarded', '', 2000);
+    render();
+  }
+
   // ---- Rest Timer ----
 
   function startRestTimer(seconds = 90) {
@@ -718,7 +732,7 @@ window.WorkoutModule = (() => {
   });
 
   return {
-    init, render, startWorkout, startCustomWorkout,
+    init, render, startWorkout, startCustomWorkout, discardWorkout,
     updateSet, completeSet, addSet, removeExercise, setRating, finishWorkout,
     addRestTime, skipRest, loadWarmup, loadFormCues, loadNextTarget,
     toggleTravel, searchExercise, addExercise, addCustomExercise, openExerciseSearch, calcPlates,

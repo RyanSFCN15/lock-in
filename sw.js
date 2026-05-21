@@ -3,7 +3,7 @@
    Full offline caching, cache-first strategy
    ============================================================ */
 
-const CACHE_NAME = 'lock-in-v1';
+const CACHE_NAME = 'lock-in-v4';
 
 // Use relative paths so the SW works on both localhost and GitHub Pages subdirectory
 const BASE = self.location.pathname.replace(/sw\.js$/, '');
