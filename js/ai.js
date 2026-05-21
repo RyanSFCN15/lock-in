@@ -94,36 +94,63 @@ window.AI = (() => {
     }
   }
 
+  // Handles both nested {name, foods:[...]} and flat {calories,...} meal items
   function calcTodayMacros(n) {
     let cal = 0, prot = 0, carbs = 0, fat = 0;
-    for (const meal of (n?.meals || [])) {
-      for (const food of (meal.foods || [])) {
-        cal   += food.calories || 0;
-        prot  += food.protein  || 0;
-        carbs += food.carbs    || 0;
-        fat   += food.fat      || 0;
+    for (const item of (n?.meals || [])) {
+      if (Array.isArray(item.foods)) {
+        // Nested structure from addFood: {name:'Lunch', foods:[{calories,...}]}
+        for (const food of item.foods) {
+          cal   += food.calories || 0;
+          prot  += food.protein  || 0;
+          carbs += food.carbs    || 0;
+          fat   += food.fat      || 0;
+        }
+      } else {
+        // Flat structure: {name:'Chicken sandwich', calories:...}
+        cal   += item.calories || 0;
+        prot  += item.protein  || 0;
+        carbs += item.carbs    || 0;
+        fat   += item.fat      || 0;
       }
     }
     return { calories: Math.round(cal), protein: Math.round(prot), carbs: Math.round(carbs), fat: Math.round(fat) };
   }
 
+  // Context cache — rebuilt max once per 90 seconds
+  let _ctxCache = null;
+  let _ctxCacheTime = 0;
+
+  async function getContext() {
+    const now = Date.now();
+    if (_ctxCache && (now - _ctxCacheTime) < 90000) return _ctxCache;
+    _ctxCache = await buildContext();
+    _ctxCacheTime = now;
+    return _ctxCache;
+  }
+
+  function invalidateContext() {
+    _ctxCache = null;
+    _ctxCacheTime = 0;
+  }
+
   // --- Gemini ---
 
-  async function geminiGenerate(prompt, systemCtx) {
+  async function geminiGenerate(prompt, systemCtx, maxTokens = 300) {
     const key = window._settings?.geminiKey;
     if (!key) throw new Error('No Gemini key');
 
     const fullPrompt = systemCtx
-      ? `SYSTEM CONTEXT (user fitness data):\n${systemCtx}\n\nINSTRUCTION: ${prompt}`
+      ? `USER CONTEXT:\n${systemCtx}\n\n${prompt}`
       : prompt;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
     const body = {
       contents: [{ parts: [{ text: fullPrompt }] }],
-      generationConfig: { maxOutputTokens: 512, temperature: 0.85 },
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.8 },
       systemInstruction: {
         parts: [{
-          text: 'You are LOCK IN, a brutally honest, no-nonsense personal fitness coach. You are direct, aggressive, and real. No fluff. Short, punchy responses. Use data to be specific. Motivate hard but stay practical. Never be preachy. Swear sparingly but effectively. Always give actionable advice.'
+          text: 'You are LOCK IN, a brutally honest personal fitness coach. Be direct and specific. No fluff. Short punchy responses. Always give actionable advice. Use the user context data when relevant.'
         }]
       }
     };
@@ -132,16 +159,20 @@ window.AI = (() => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(12000),
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `Gemini error ${res.status}`);
+      const errData = await res.json().catch(() => ({}));
+      const msg = errData.error?.message || `HTTP ${res.status}`;
+      if (res.status === 400) throw new Error(`Invalid API key or request: ${msg}`);
+      if (res.status === 403) throw new Error('API key invalid or quota exceeded');
+      if (res.status === 429) throw new Error('Rate limited — try again in a moment');
+      throw new Error(`Gemini error: ${msg}`);
     }
 
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
   }
 
   // --- Ollama ---
@@ -174,23 +205,38 @@ window.AI = (() => {
   }
 
   // --- Main generate function ---
+  // opts: { withContext, maxLen, maxTokens, onError }
 
   async function generate(prompt, opts = {}) {
-    const { withContext = true, maxLen = null } = opts;
-    const systemCtx = withContext ? await buildContext() : '';
+    const { withContext = true, maxLen = null, maxTokens = 250, onError = null } = opts;
+    // Use cached context — avoids 300-500ms DB overhead on every call
+    const systemCtx = withContext ? await getContext() : '';
 
     let text = '';
+    let lastError = null;
 
     if (_ollamaAvailable) {
       try {
         text = await ollamaGenerate(prompt, systemCtx);
       } catch (e) {
-        console.warn('Ollama failed, trying Gemini:', e.message);
+        console.warn('Ollama failed, falling back to Gemini:', e.message);
         _ollamaAvailable = false;
-        text = await geminiGenerate(prompt, systemCtx).catch(() => '');
+        try { text = await geminiGenerate(prompt, systemCtx, maxTokens); }
+        catch (e2) { lastError = e2; }
       }
     } else {
-      text = await geminiGenerate(prompt, systemCtx).catch(() => '');
+      try { text = await geminiGenerate(prompt, systemCtx, maxTokens); }
+      catch (e) { lastError = e; }
+    }
+
+    if (lastError) {
+      console.warn('AI generate error:', lastError.message);
+      if (onError) onError(lastError.message);
+      // Show error in toast for key/quota issues
+      if (lastError.message.includes('API key') || lastError.message.includes('quota') || lastError.message.includes('invalid')) {
+        toast('AI error: ' + lastError.message, 'error', 4000);
+      }
+      return '';
     }
 
     if (maxLen && text.length > maxLen) {
@@ -204,8 +250,8 @@ window.AI = (() => {
 
   async function getDailyBrief() {
     return generate(
-      'Generate a short, punchy daily motivation message (2-3 sentences max). Based on my current stats, what\'s my focus for today? Be direct and aggressive.',
-      { maxLen: 300 }
+      'Short punchy daily message. 2 sentences max. Based on my stats, one specific thing to focus on today. Direct, no fluff.',
+      { maxLen: 200, maxTokens: 100 }
     );
   }
 
@@ -420,5 +466,6 @@ window.AI = (() => {
     getBudgetMealPlan,
     unavailableHTML,
     buildContext,
+    invalidateContext,
   };
 })();

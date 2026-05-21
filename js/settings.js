@@ -15,7 +15,7 @@ window.SettingsModule = (() => {
     const container = document.getElementById('more-content');
     if (!container) return;
 
-    const [geminiKey, ollamaEndpoint, notifWorkout, notifWater, notifSupp, notifFasting, budgetEnabled, budgetAmt] = await Promise.all([
+    const [geminiKey, ollamaEndpoint, notifWorkout, notifWater, notifSupp, notifFasting, budgetEnabled, budgetAmt, waterGoalMl, workoutSchedule] = await Promise.all([
       DB.getSetting('geminiKey', ''),
       DB.getSetting('ollamaEndpoint', 'http://localhost:11434'),
       DB.getSetting('notifWorkout', false),
@@ -24,6 +24,8 @@ window.SettingsModule = (() => {
       DB.getSetting('notifFasting', false),
       DB.getSetting('budgetEnabled', false),
       DB.getSetting('weeklyBudget', _profile?.weeklyBudget || ''),
+      DB.getSetting('waterGoalMl', 2800),
+      DB.getSetting('workoutSchedule', null),
     ]);
 
     const hasFasting = _profile?.fastingProtocol?.type && _profile.fastingProtocol.type !== 'none';
@@ -39,24 +41,35 @@ window.SettingsModule = (() => {
         <div class="settings-row">
           <div style="flex:1">
             <div style="font-weight:700;font-size:14px;margin-bottom:2px">Gemini API Key</div>
-            <div style="font-size:12px;color:var(--text-muted)">Current engine: <strong>${AI.engineName()}</strong></div>
+            <div style="font-size:12px;color:${AI.isAvailable() ? 'var(--green)' : 'var(--text-muted)'}">
+              ${AI.isAvailable() ? '✓ AI active — ' + AI.engineName() : 'No AI connected'}
+            </div>
           </div>
         </div>
+        ${geminiKey ? `
+        <div style="background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);border-radius:var(--radius);padding:8px 12px;font-size:12px;color:var(--green);margin-bottom:8px">
+          ✓ Key saved: AIza...${geminiKey.slice(-4)}
+          <button class="btn btn-ghost btn-sm" style="float:right;min-height:28px;padding:0 8px;font-size:11px;margin-top:-2px" onclick="SettingsModule.clearGeminiKey()">Remove</button>
+        </div>` : ''}
         <div style="display:flex;gap:8px;margin-bottom:4px">
           <input
-            type="password"
+            type="text"
             id="settings-gemini-key"
             class="input"
-            style="flex:1"
-            placeholder="AIza..."
-            value="${geminiKey ? '••••••••' : ''}"
+            style="flex:1;font-size:13px"
+            placeholder="${geminiKey ? 'Enter new key to replace…' : 'AIzaSy...'}"
             autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
           />
           <button class="btn btn-primary" onclick="SettingsModule.saveGeminiKey()">Save</button>
         </div>
-        <div style="font-size:11px;color:var(--text-dim);margin-bottom:16px">
-          Get a free key at <span style="color:var(--accent)">aistudio.google.com</span>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">
+          Free key at <strong>aistudio.google.com</strong> → Get API key
         </div>
+        <button class="btn btn-ghost btn-full btn-sm" onclick="SettingsModule.testGemini()" style="margin-bottom:12px">Test AI Connection</button>
+        <div id="settings-ai-status" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
 
         <div class="settings-row">
           <div style="flex:1">
@@ -147,6 +160,51 @@ window.SettingsModule = (() => {
           </div>
         </div>
       ` : ''}
+
+      <!-- Water Goal -->
+      <div class="settings-section">
+        <div class="settings-section-title">Hydration Goal</div>
+        <div class="settings-row" style="flex-wrap:wrap;gap:10px">
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:14px">Daily Water Goal</div>
+            <div style="font-size:12px;color:var(--text-muted)">Current: ${((waterGoalMl||2800)/1000).toFixed(1)}L/day</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;margin-bottom:8px;align-items:center">
+          <input type="number" id="settings-water-goal" class="input" style="flex:1" placeholder="e.g. 3000"
+            value="${waterGoalMl||2800}" min="500" max="8000" step="250" />
+          <span style="font-size:13px;color:var(--text-muted)">ml</span>
+          <button class="btn btn-primary btn-sm" onclick="SettingsModule.saveWaterGoal()">Save</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${[1500,2000,2500,3000,3500,4000].map(ml => `<button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('settings-water-goal').value=${ml}">${(ml/1000).toFixed(1)}L</button>`).join('')}
+        </div>
+      </div>
+
+      <!-- Workout Schedule -->
+      <div class="settings-section">
+        <div class="settings-section-title">Weekly Workout Schedule</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Pick which days you train for each slot in your split.</div>
+        ${(() => {
+          const split = _profile?.split;
+          if (!split?.days) return '<div style="font-size:13px;color:var(--text-dim)">Complete onboarding to set your split first.</div>';
+          const schedule = workoutSchedule || {};
+          const splitDays = split.days; // array of 7 (Mon-Sun)
+          const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+          return dayNames.map((day, i) => `
+            <div class="settings-row">
+              <div style="font-weight:700;font-size:14px;width:44px">${day}</div>
+              <select class="input" style="flex:1" id="sched-day-${i}"
+                onchange="SettingsModule.saveWorkoutSchedule()">
+                <option value="Rest" ${(schedule[i]||splitDays[i])==='Rest'?'selected':''}>Rest</option>
+                ${[...new Set(splitDays.filter(d=>d!=='Rest'))].map(d =>
+                  `<option value="${d}" ${(schedule[i]||splitDays[i])===d?'selected':''}>${d}</option>`
+                ).join('')}
+              </select>
+            </div>
+          `).join('');
+        })()}
+      </div>
 
       <!-- Budget Mode -->
       <div class="settings-section">
@@ -294,14 +352,37 @@ window.SettingsModule = (() => {
     const input = document.getElementById('settings-gemini-key');
     if (!input) return;
     const val = input.value.trim();
-    if (!val || val === '••••••••') {
-      toast('Enter a valid API key', 'error');
-      return;
+    if (!val) { toast('Paste your Gemini API key first', 'error'); return; }
+    if (!val.startsWith('AIza') || val.length < 30) {
+      toast('That doesn\'t look like a valid Gemini key (should start with AIza...)', 'error'); return;
     }
     await DB.setSetting('geminiKey', val);
     window._settings.geminiKey = val;
-    input.value = '••••••••';
-    toast('Gemini API key saved', 'success');
+    if (window.AI) AI.invalidateContext?.();
+    input.value = '';
+    toast('✓ Gemini API key saved', 'success');
+    await render(); // re-render to show "Key saved" status
+  }
+
+  async function clearGeminiKey() {
+    await DB.setSetting('geminiKey', '');
+    window._settings.geminiKey = '';
+    toast('API key removed', '', 2000);
+    await render();
+  }
+
+  async function testGemini() {
+    const statusEl = document.getElementById('settings-ai-status');
+    if (statusEl) { statusEl.textContent = 'Testing…'; statusEl.style.color = 'var(--text-muted)'; }
+    try {
+      const result = await AI.generate('Say "Lock In AI is working!" — nothing else.', { withContext: false, maxTokens: 20 });
+      if (statusEl) {
+        statusEl.textContent = result ? `✓ ${result.slice(0,60)}` : '✗ No response — check your key';
+        statusEl.style.color = result ? 'var(--green)' : 'var(--accent)';
+      }
+    } catch(e) {
+      if (statusEl) { statusEl.textContent = '✗ ' + e.message; statusEl.style.color = 'var(--accent)'; }
+    }
   }
 
   async function saveOllamaEndpoint() {
@@ -396,59 +477,75 @@ window.SettingsModule = (() => {
   }
 
   async function saveNotif(key, value) {
-    if (value) {
-      // Request browser permission when enabling any notification
-      if ('Notification' in window) {
-        const permission = await Notification.requestPermission();
-        if (permission === 'denied') {
-          toast('Notifications blocked by browser. Enable in site settings.', 'error', 4000);
-          // Uncheck the toggle
-          const inputs = document.querySelectorAll(`input[onchange*="'${key}'"]`);
-          inputs.forEach(i => { i.checked = false; });
-          return;
-        }
-        if (permission === 'granted') {
-          // Schedule a test notification
-          new Notification('Lock In 🔒', {
-            body: 'Notifications are enabled! Stay locked in.',
-            icon: '/lock-in/icons/icon-192.png',
-          });
-          // Schedule recurring notifications based on type
-          _scheduleNotification(key);
-        }
-      } else {
-        toast('Notifications not supported in this browser', 'error', 3000);
+    if (value && !('Notification' in window)) {
+      toast('Notifications not supported in this browser', 'error', 3000);
+      document.querySelector(`[onchange*="saveNotif('${key}'"]`)?.closest('label')?.querySelector('input')?.setAttribute('checked', false);
+      return;
+    }
+    if (value && Notification.permission === 'default') {
+      // Need to request — must be triggered by user gesture (this is)
+      const perm = await Notification.requestPermission();
+      if (perm === 'denied') {
+        toast('Notifications blocked. Go to your browser/device settings and allow notifications for this site.', 'error', 5000);
+        // Flip the toggle back visually
+        const chk = document.getElementById(`notif-${key.replace('notif','').toLowerCase()}`);
+        if (chk) chk.checked = false;
         return;
       }
     }
+    if (value && Notification.permission === 'denied') {
+      toast('Notifications are blocked. Enable them in your browser site settings, then try again.', 'error', 5000);
+      return;
+    }
+
     await DB.setSetting(key, value);
     window._settings[key] = value;
-    toast(value ? 'Notifications enabled ✓' : 'Notifications disabled', value ? 'success' : '', 1500);
+
+    if (value && Notification.permission === 'granted') {
+      // Fire a test notification immediately so user knows it works
+      try {
+        new Notification('Lock In 🔒', {
+          body: _notifMessages[key] || 'Notifications active!',
+          icon: 'icons/icon-192.png',
+        });
+      } catch(e) {}
+    }
+
+    toast(value ? '✓ Notifications enabled' : 'Notifications off', value ? 'success' : '', 2000);
   }
 
-  function _scheduleNotification(key) {
-    // Clear existing interval if any
-    if (window._notifIntervals) clearInterval(window._notifIntervals[key]);
-    if (!window._notifIntervals) window._notifIntervals = {};
+  const _notifMessages = {
+    notifWorkout:     "Time to train 💪 Log your workout!",
+    notifWater:       "💧 Stay hydrated — drink some water!",
+    notifSupplements: "💊 Don't forget your supplements!",
+    notifFasting:     "⏱️ Check your fasting window status",
+  };
 
-    const messages = {
-      notifWorkout:      { interval: 24 * 60 * 60 * 1000, body: "Time to train 💪 Log your workout!" },
-      notifWater:        { interval: 60 * 60 * 1000,       body: "💧 Drink some water — stay hydrated!" },
-      notifSupplements:  { interval: 12 * 60 * 60 * 1000,  body: "💊 Don't forget your supplements!" },
-      notifFasting:      { interval: 30 * 60 * 1000,       body: "⏱️ Check your fasting window status" },
-    };
+  async function saveWaterGoal() {
+    const input = document.getElementById('settings-water-goal');
+    const val = parseInt(input?.value) || 2800;
+    if (val < 500 || val > 8000) { toast('Enter a value between 500 and 8000 ml', 'error'); return; }
+    await DB.setSetting('waterGoalMl', val);
+    window._settings.waterGoalMl = val;
+    toast(`✓ Water goal set to ${(val/1000).toFixed(1)}L/day`, 'success');
+    await render();
+  }
 
-    const cfg = messages[key];
-    if (!cfg) return;
-
-    window._notifIntervals[key] = setInterval(() => {
-      if (Notification.permission === 'granted' && window._settings?.[key]) {
-        new Notification('Lock In 🔒', {
-          body: cfg.body,
-          icon: '/lock-in/icons/icon-192.png',
-        });
-      }
-    }, cfg.interval);
+  async function saveWorkoutSchedule() {
+    const schedule = {};
+    for (let i = 0; i < 7; i++) {
+      const sel = document.getElementById(`sched-day-${i}`);
+      if (sel) schedule[i] = sel.value;
+    }
+    await DB.setSetting('workoutSchedule', schedule);
+    window._settings.workoutSchedule = schedule;
+    // Update profile split days
+    if (_profile?.split) {
+      const updated = { ..._profile, split: { ..._profile.split, days: Object.values(schedule) } };
+      await DB.saveProfile(updated);
+      _profile = updated;
+    }
+    toast('Schedule saved', 'success', 1500);
   }
 
   async function exportAllData() {
@@ -516,21 +613,14 @@ window.SettingsModule = (() => {
   }
 
   return {
-    init,
-    render,
-    saveGeminiKey,
-    saveOllamaEndpoint,
-    testOllama,
-    toggleEditProfile,
-    saveProfile,
-    saveFastingType,
-    saveBudgetToggle,
-    saveBudget,
+    init, render,
+    saveGeminiKey, clearGeminiKey, testGemini,
+    saveOllamaEndpoint, testOllama,
+    toggleEditProfile, saveProfile, saveFastingType,
+    saveBudgetToggle, saveBudget,
     saveNotif,
-    exportAllData,
-    importData,
-    clearTodayLogs,
-    resetApp,
+    saveWaterGoal, saveWorkoutSchedule,
+    exportAllData, importData, clearTodayLogs, resetApp,
   };
 })();
 

@@ -60,6 +60,9 @@ window.NutritionModule = (() => {
     const todayLog = await DB.getTodayNutrition() || { meals: [], water: 0 };
     const macros = calcTodayMacros(todayLog);
     _targets = _profile ? calcMacroTargets(_profile) : { calories:2000, protein:150, carbs:200, fat:60, waterMl:2800 };
+    // Override water goal with user's custom setting if set
+    const customWaterMl = window._settings?.waterGoalMl;
+    if (customWaterMl && customWaterMl > 0) _targets.waterMl = customWaterMl;
 
     const meals = groupByMeal(todayLog.meals || []);
 
@@ -609,12 +612,17 @@ Use whole numbers. Estimate realistically for typical restaurant/home portions.`
       protein: food.protein,
       carbs: food.carbs,
       fat: food.fat,
-      meal: mealType,
       source: 'ai-estimate',
     };
     const log = await DB.getTodayNutrition() || { meals: [], water: 0 };
     log.meals = log.meals || [];
-    log.meals.push(foodItem);
+    // Store in the same grouped format as addFood: {name: mealType, foods: [...]}
+    let mealGroup = log.meals.find(m => m.name === mealType);
+    if (!mealGroup) {
+      mealGroup = { name: mealType, foods: [] };
+      log.meals.push(mealGroup);
+    }
+    mealGroup.foods = [...(mealGroup.foods || []), foodItem];
     await DB.saveNutritionLog(log);
     _lastEstimate = null;
     toast(`${food.name} logged to ${mealType} ✓`, 'success', 2500);

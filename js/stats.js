@@ -17,11 +17,21 @@ window.StatsModule = (() => {
 
     container.innerHTML = `<div class="ai-loading" style="padding:40px;justify-content:center;display:flex;align-items:center;gap:8px"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div><span style="margin-left:6px;color:var(--text-muted)">Loading stats...</span></div>`;
 
-    const [stats, prs, muscleXP] = await Promise.all([
+    const [stats, prs, muscleXP, allWorkouts] = await Promise.all([
       DB.getLifetimeStats(),
       DB.getPRs(),
       DB.getAllMuscleXP(),
+      DB.getAllWorkouts(),
     ]);
+
+    // Sum total workout duration
+    const totalWorkoutMin = allWorkouts.reduce((sum, w) => sum + (w.durationMin || 0), 0);
+    function fmtDuration(min) {
+      if (!min) return '0m';
+      const h = Math.floor(min / 60);
+      const m = min % 60;
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
 
     container.innerHTML = `
 
@@ -37,6 +47,7 @@ window.StatsModule = (() => {
         <div class="card-title">All-Time Numbers</div>
         <div class="stats-grid">
           ${statCell('Workouts', stats.totalWorkouts, '')}
+          ${statCell('Time', fmtDuration(totalWorkoutMin), '')}
           ${statCell('Sets', stats.totalSets.toLocaleString(), '')}
           ${statCell('Reps', stats.totalReps.toLocaleString(), '')}
           ${statCell('Weight', stats.totalWeightLbs.toLocaleString(), 'lbs')}

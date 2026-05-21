@@ -38,6 +38,7 @@
   <div id="app-header">
     <div class="logo">LOCK IN</div>
     <div class="header-right">
+      <button id="unit-toggle-global" class="btn btn-sm btn-ghost" onclick="toggleUnitSystem()" style="font-size:12px;min-width:44px;min-height:36px;padding:0 10px">kg</button>
       <div class="streak-badge">
         🔥 <span id="streak-count">0</span>
       </div>
@@ -82,9 +83,9 @@
       </div>
       <!-- Sub-tabs -->
       <div class="pill-group" style="margin-bottom:16px">
-        <div class="pill selected" onclick="BodyModule.switchTab('recovery', this)">Recovery</div>
-        <div class="pill" onclick="BodyModule.switchTab('cardio', this)">Cardio</div>
-        <div class="pill" onclick="BodyModule.switchTab('measurements', this)">Measurements</div>
+        <button type="button" class="pill selected" onclick="BodyModule.switchTab('recovery', this)">Recovery</button>
+        <button type="button" class="pill" onclick="BodyModule.switchTab('cardio', this)">Cardio</button>
+        <button type="button" class="pill" onclick="BodyModule.switchTab('measurements', this)">Measurements</button>
       </div>
       <div id="body-content"></div>
     </section>
@@ -95,10 +96,10 @@
         <h1 class="section-title">More</h1>
       </div>
       <div class="pill-group" style="margin-bottom:16px">
-        <div class="pill selected" onclick="MoreModule.switchTab('progress', this)">Progress</div>
-        <div class="pill" onclick="MoreModule.switchTab('stats', this)">Stats</div>
-        <div class="pill" onclick="MoreModule.switchTab('achievements', this)">🏆 Badges</div>
-        <div class="pill" onclick="MoreModule.switchTab('settings', this)">Settings</div>
+        <button type="button" class="pill selected" onclick="MoreModule.switchTab('progress', this)">Progress</button>
+        <button type="button" class="pill" onclick="MoreModule.switchTab('stats', this)">Stats</button>
+        <button type="button" class="pill" onclick="MoreModule.switchTab('achievements', this)">🏆 Badges</button>
+        <button type="button" class="pill" onclick="MoreModule.switchTab('settings', this)">Settings</button>
       </div>
       <div id="more-content"></div>
     </section>

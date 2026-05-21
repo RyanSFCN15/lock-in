@@ -88,6 +88,19 @@ window.fmtWeight = (kg, unit = 'kg') => {
 // Global unit preference: 'metric' or 'imperial'
 window._unitSystem = 'metric';
 
+// Toggle the whole app between kg and lbs — re-renders current section
+window.toggleUnitSystem = function() {
+  window._unitSystem = (window._unitSystem === 'metric') ? 'imperial' : 'metric';
+  const btn = document.getElementById('unit-toggle-global');
+  if (btn) btn.textContent = window._unitSystem === 'metric' ? 'kg' : 'lbs';
+  // Save preference
+  DB.setSetting('unitSystem', window._unitSystem).catch(() => {});
+  // Re-render current section so all inputs update
+  window.dispatchEvent(new CustomEvent('sectionShown', { detail: currentSection }));
+  // Also refresh dashboard if visible
+  if (currentSection !== 'dashboard' && window.Dashboard) Dashboard.render?.();
+};
+
 window.kgToLbs  = kg  => Math.round(kg  * 2.20462 * 10) / 10;
 window.lbsToKg  = lbs => Math.round(lbs / 2.20462 * 10) / 10;
 window.cmToIn   = cm  => Math.round(cm  / 2.54 * 10) / 10;
@@ -509,6 +522,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   try {
     const allSettings = await DB.getAllSettings();
     window._settings = allSettings;
+    // Restore unit system preference
+    if (allSettings.unitSystem) {
+      window._unitSystem = allSettings.unitSystem;
+      const btn = document.getElementById('unit-toggle-global');
+      if (btn) btn.textContent = allSettings.unitSystem === 'imperial' ? 'lbs' : 'kg';
+    }
   } catch (e) { window._settings = {}; }
 
   // Detect Ollama
