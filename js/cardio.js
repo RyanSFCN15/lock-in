@@ -40,10 +40,20 @@ window.CardioModule = (() => {
     const container = document.getElementById('body-content');
     if (!container) return;
 
-    const [todaySessions, lifetimeStats] = await Promise.all([
-      DB.getTodayCardio ? DB.getTodayCardio() : Promise.resolve([]),
-      DB.getLifetimeCardio ? DB.getLifetimeCardio() : Promise.resolve(null),
-    ]);
+    let todaySessions = [], lifetimeStats = null;
+    try {
+      [todaySessions, lifetimeStats] = await Promise.all([
+        DB.getTodayCardio ? DB.getTodayCardio() : Promise.resolve([]),
+        DB.getLifetimeCardio ? DB.getLifetimeCardio() : Promise.resolve(null),
+      ]);
+      // Normalise — DB might return an object {date, entries:[]} or an array
+      if (todaySessions && !Array.isArray(todaySessions)) {
+        todaySessions = todaySessions.entries || todaySessions.sessions || [];
+      }
+    } catch(e) {
+      console.warn('Cardio render error:', e);
+      todaySessions = [];
+    }
 
     // Weekly stats
     const weekAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; })();

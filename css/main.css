@@ -60,11 +60,13 @@ body {
 }
 
 #app-header {
-  height: var(--header-h);
+  height: auto;
+  min-height: var(--header-h);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: env(safe-area-inset-top, 0px) 16px 0;
+  padding-bottom: 0;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -109,7 +111,7 @@ body {
 #main-content::-webkit-scrollbar { display: none; }
 
 /* Sections */
-.section { display: none; padding: 16px 16px calc(var(--nav-h) + 16px); }
+.section { display: none; padding: 16px 16px calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px); }
 .section.active { display: block; }
 
 /* ============================================================
@@ -117,14 +119,15 @@ body {
    ============================================================ */
 
 #bottom-nav {
-  height: var(--nav-h);
+  height: auto;
+  min-height: var(--nav-h);
   display: flex;
   align-items: stretch;
   background: var(--bg-card);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
   z-index: 100;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .nav-item {
@@ -1273,10 +1276,13 @@ textarea { resize: none; min-height: 80px; }
   width: 48px;
   height: 28px;
   flex-shrink: 0;
+  touch-action: manipulation;
 }
 
-.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
 
+/* Works whether the span has class="toggle-track" or no class */
+.toggle span,
 .toggle-track {
   position: absolute;
   inset: 0;
@@ -1284,8 +1290,10 @@ textarea { resize: none; min-height: 80px; }
   border-radius: 14px;
   cursor: pointer;
   transition: background 0.2s;
+  touch-action: manipulation;
 }
 
+.toggle span::after,
 .toggle-track::after {
   content: '';
   position: absolute;
@@ -1296,7 +1304,9 @@ textarea { resize: none; min-height: 80px; }
   transition: transform 0.2s;
 }
 
+.toggle input:checked + span,
 .toggle input:checked + .toggle-track { background: var(--accent); }
+.toggle input:checked + span::after,
 .toggle input:checked + .toggle-track::after { transform: translateX(20px); }
 
 /* ============================================================

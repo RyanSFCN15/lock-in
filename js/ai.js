@@ -8,7 +8,7 @@ window.AI = (() => {
 
   const OLLAMA_URL = () => window._settings?.ollamaEndpoint || 'http://localhost:11434';
   const OLLAMA_MODEL = 'llama3.2';
-  const GEMINI_MODEL = 'gemini-2.0-flash';
+  const GEMINI_MODEL = 'gemini-1.5-flash'; // stable, free-tier compatible
 
   // --- Detect Ollama ---
 
@@ -136,39 +136,40 @@ window.AI = (() => {
 
   // --- Gemini ---
 
+  const SYSTEM_PROMPT = 'You are LOCK IN, a brutally honest personal fitness coach. Be direct and specific. No fluff. Short punchy responses. Always give actionable advice. Use the user context data when relevant.';
+
   async function geminiGenerate(prompt, systemCtx, maxTokens = 300) {
     const key = window._settings?.geminiKey;
-    if (!key) throw new Error('No Gemini key');
+    if (!key) throw new Error('No Gemini key saved. Go to Settings → AI Settings to add your key.');
 
-    const fullPrompt = systemCtx
-      ? `USER CONTEXT:\n${systemCtx}\n\n${prompt}`
-      : prompt;
+    // Build the full prompt — prepend system instructions and context into the user message
+    // (avoids systemInstruction field which some API keys reject)
+    const parts = [];
+    parts.push(SYSTEM_PROMPT);
+    if (systemCtx) parts.push(`USER FITNESS DATA:\n${systemCtx}`);
+    parts.push(prompt);
+    const fullPrompt = parts.join('\n\n');
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
     const body = {
       contents: [{ parts: [{ text: fullPrompt }] }],
       generationConfig: { maxOutputTokens: maxTokens, temperature: 0.8 },
-      systemInstruction: {
-        parts: [{
-          text: 'You are LOCK IN, a brutally honest personal fitness coach. Be direct and specific. No fluff. Short punchy responses. Always give actionable advice. Use the user context data when relevant.'
-        }]
-      }
     };
 
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       const msg = errData.error?.message || `HTTP ${res.status}`;
-      if (res.status === 400) throw new Error(`Invalid API key or request: ${msg}`);
-      if (res.status === 403) throw new Error('API key invalid or quota exceeded');
-      if (res.status === 429) throw new Error('Rate limited — try again in a moment');
-      throw new Error(`Gemini error: ${msg}`);
+      if (res.status === 400) throw new Error(`Bad request — ${msg}`);
+      if (res.status === 403) throw new Error(`Key rejected — ${msg}`);
+      if (res.status === 429) throw new Error('Rate limited — wait a moment and try again');
+      throw new Error(`Gemini ${res.status}: ${msg}`);
     }
 
     const data = await res.json();

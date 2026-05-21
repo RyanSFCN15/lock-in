@@ -100,34 +100,36 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // App assets — cache-first, then network, then offline page
-  event.respondWith(
-    caches.match(request).then(cached => {
-      if (cached) {
-        // Stale-while-revalidate for HTML
-        if (request.destination === 'document') {
-          fetch(request).then(res => {
-            if (res.ok) {
-              caches.open(CACHE_NAME).then(cache => cache.put(request, res));
-            }
-          }).catch(() => {});
+  // JS and CSS — NETWORK FIRST so code changes always load immediately.
+  // Falls back to cache when offline.
+  if (request.destination === 'script' || request.destination === 'style') {
+    event.respondWith(
+      fetch(request).then(res => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
         }
-        return cached;
-      }
+        return res;
+      }).catch(() => caches.match(request).then(cached => cached || new Response('', { status: 503 })))
+    );
+    return;
+  }
 
-      return fetch(request).then(res => {
-        if (!res.ok) return res;
+  // HTML and other app assets — network-first with cache fallback
+  event.respondWith(
+    fetch(request).then(res => {
+      if (res.ok) {
         const clone = res.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
-        return res;
-      }).catch(() => {
-        // Offline fallback
-        if (request.destination === 'document') {
-          return caches.match('/index.html');
-        }
+      }
+      return res;
+    }).catch(() =>
+      caches.match(request).then(cached => {
+        if (cached) return cached;
+        if (request.destination === 'document') return caches.match(BASE + 'index.html');
         return new Response('', { status: 503 });
-      });
-    })
+      })
+    )
   );
 });
 

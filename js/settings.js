@@ -382,15 +382,49 @@ window.SettingsModule = (() => {
 
   async function testGemini() {
     const statusEl = document.getElementById('settings-ai-status');
-    if (statusEl) { statusEl.textContent = 'Testing…'; statusEl.style.color = 'var(--text-muted)'; }
+    const key = window._settings?.geminiKey;
+
+    if (!key) {
+      if (statusEl) { statusEl.textContent = '✗ No key saved — enter and save your key first'; statusEl.style.color = 'var(--accent)'; }
+      return;
+    }
+
+    if (statusEl) { statusEl.textContent = 'Testing connection…'; statusEl.style.color = 'var(--text-muted)'; }
+
     try {
-      const result = await AI.generate('Say "Lock In AI is working!" — nothing else.', { withContext: false, maxTokens: 20 });
+      // Call the API directly so errors surface instead of being swallowed
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Reply with exactly: "Lock In AI is working!"' }] }],
+          generationConfig: { maxOutputTokens: 20 },
+        }),
+        signal: AbortSignal.timeout(12000),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const msg = errData.error?.message || `HTTP ${res.status}`;
+        if (statusEl) { statusEl.textContent = `✗ ${msg}`; statusEl.style.color = 'var(--accent)'; }
+        return;
+      }
+
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (statusEl) {
-        statusEl.textContent = result ? `✓ ${result.slice(0,60)}` : '✗ No response — check your key';
-        statusEl.style.color = result ? 'var(--green)' : 'var(--accent)';
+        statusEl.textContent = `✓ Connected! "${text || 'Response received'}"`;
+        statusEl.style.color = 'var(--green)';
       }
     } catch(e) {
-      if (statusEl) { statusEl.textContent = '✗ ' + e.message; statusEl.style.color = 'var(--accent)'; }
+      if (statusEl) {
+        const msg = e.name === 'TimeoutError' || e.name === 'AbortError'
+          ? 'Timed out — check your internet connection'
+          : e.message;
+        statusEl.textContent = `✗ ${msg}`;
+        statusEl.style.color = 'var(--accent)';
+      }
     }
   }
 
