@@ -5,27 +5,30 @@
 
 const CACHE_NAME = 'lock-in-v1';
 
+// Use relative paths so the SW works on both localhost and GitHub Pages subdirectory
+const BASE = self.location.pathname.replace(/sw\.js$/, '');
+
 const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/css/main.css',
-  '/js/db.js',
-  '/js/ai.js',
-  '/js/app.js',
-  '/js/onboarding.js',
-  '/js/gamification.js',
-  '/js/dashboard.js',
-  '/js/workout.js',
-  '/js/nutrition.js',
-  '/js/cardio.js',
-  '/js/recovery.js',
-  '/js/measurements.js',
-  '/js/stats.js',
-  '/js/settings.js',
-  '/icons/icon.svg',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
+  BASE,
+  BASE + 'index.html',
+  BASE + 'manifest.json',
+  BASE + 'css/main.css',
+  BASE + 'js/db.js',
+  BASE + 'js/ai.js',
+  BASE + 'js/app.js',
+  BASE + 'js/onboarding.js',
+  BASE + 'js/gamification.js',
+  BASE + 'js/dashboard.js',
+  BASE + 'js/workout.js',
+  BASE + 'js/nutrition.js',
+  BASE + 'js/cardio.js',
+  BASE + 'js/recovery.js',
+  BASE + 'js/measurements.js',
+  BASE + 'js/stats.js',
+  BASE + 'js/settings.js',
+  BASE + 'icons/icon.svg',
+  BASE + 'icons/icon-192.png',
+  BASE + 'icons/icon-512.png',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
 ];
 
