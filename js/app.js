@@ -567,8 +567,12 @@ async function initApp(profile) {
   // Update header
   const streakBadge = document.getElementById('streak-count');
   if (streakBadge) {
-    const streak = await DB.getStreak();
-    streakBadge.textContent = streak.current;
+    try {
+      const streak = await DB.getStreak();
+      streakBadge.textContent = streak?.current ?? 0;
+    } catch(e) {
+      streakBadge.textContent = '0';
+    }
   }
 
   // Init each module (await async inits so errors surface properly)

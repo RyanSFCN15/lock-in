@@ -701,7 +701,7 @@ window.WorkoutModule = (() => {
   // Section refresh
   window.addEventListener('sectionShown', async (e) => {
     if (e.detail === 'workout') {
-      _workout = await DB.getTodayWorkout();
+      try { _workout = await DB.getTodayWorkout(); } catch(e) { _workout = null; }
       await render();
     }
   });
