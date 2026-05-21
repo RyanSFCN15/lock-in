@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Lock In" />
+  <meta name="description" content="Personal fitness coaching. No excuses." />
+  <title>Lock In</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+
+<!-- ====================================================
+     SPLASH SCREEN
+     ==================================================== -->
+<div id="splash">
+  <div class="splash-logo">LOCK IN</div>
+  <div class="splash-sub">No excuses.</div>
+</div>
+
+<!-- ====================================================
+     ONBOARDING
+     ==================================================== -->
+<div id="onboarding" style="display:none"></div>
+
+<!-- ====================================================
+     MAIN APP
+     ==================================================== -->
+<div id="app" style="display:none">
+
+  <!-- Header -->
+  <div id="app-header">
+    <div class="logo">LOCK IN</div>
+    <div class="header-right">
+      <div class="streak-badge">
+        🔥 <span id="streak-count">0</span>
+      </div>
+      <button id="install-pwa-btn" class="btn btn-sm btn-ghost" style="display:none" onclick="installPWA()">Install</button>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div id="main-content">
+
+    <!-- DASHBOARD -->
+    <section id="section-dashboard" class="section active">
+      <div id="dashboard-content">
+        <div class="empty-state" style="padding-top:60px">
+          <div class="ai-dot" style="margin:0 auto"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WORKOUT -->
+    <section id="section-workout" class="section">
+      <div class="section-header">
+        <h1 class="section-title">Workout</h1>
+        <button class="btn btn-sm btn-ghost" onclick="WorkoutModule.openExerciseSearch()">+ Exercise</button>
+      </div>
+      <div id="workout-content"></div>
+    </section>
+
+    <!-- NUTRITION -->
+    <section id="section-nutrition" class="section">
+      <div class="section-header">
+        <h1 class="section-title">Nutrition</h1>
+        <button class="btn btn-sm btn-ghost" onclick="NutritionModule.openFoodSearch()">+ Food</button>
+      </div>
+      <div id="nutrition-content"></div>
+    </section>
+
+    <!-- BODY (Measurements + Cardio + Recovery) -->
+    <section id="section-body" class="section">
+      <div class="section-header">
+        <h1 class="section-title">Body</h1>
+      </div>
+      <!-- Sub-tabs -->
+      <div class="pill-group" style="margin-bottom:16px">
+        <div class="pill selected" onclick="BodyModule.switchTab('recovery', this)">Recovery</div>
+        <div class="pill" onclick="BodyModule.switchTab('cardio', this)">Cardio</div>
+        <div class="pill" onclick="BodyModule.switchTab('measurements', this)">Measurements</div>
+      </div>
+      <div id="body-content"></div>
+    </section>
+
+    <!-- MORE (Progress + Stats + Settings) -->
+    <section id="section-more" class="section">
+      <div class="section-header">
+        <h1 class="section-title">More</h1>
+      </div>
+      <div class="pill-group" style="margin-bottom:16px">
+        <div class="pill selected" onclick="MoreModule.switchTab('progress', this)">Progress</div>
+        <div class="pill" onclick="MoreModule.switchTab('stats', this)">Stats</div>
+        <div class="pill" onclick="MoreModule.switchTab('settings', this)">Settings</div>
+      </div>
+      <div id="more-content"></div>
+    </section>
+
+  </div><!-- /main-content -->
+
+  <!-- Bottom Nav -->
+  <nav id="bottom-nav">
+    <button class="nav-item active" data-section="dashboard" onclick="navigateTo('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      Home
+    </button>
+    <button class="nav-item" data-section="workout" onclick="navigateTo('workout')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.5 6.5h11M3 12h18M6.5 17.5h11"/>
+        <circle cx="3" cy="12" r="1" fill="currentColor"/>
+        <circle cx="21" cy="12" r="1" fill="currentColor"/>
+      </svg>
+      Workout
+    </button>
+    <button class="nav-item" data-section="nutrition" onclick="navigateTo('nutrition')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
+        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+        <line x1="6" y1="1" x2="6" y2="4"/>
+        <line x1="10" y1="1" x2="10" y2="4"/>
+        <line x1="14" y1="1" x2="14" y2="4"/>
+      </svg>
+      Nutrition
+    </button>
+    <button class="nav-item" data-section="body" onclick="navigateTo('body')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="3"/>
+        <path d="M8.5 14c-1.1.4-2 1.3-2 2.5V21h11v-4.5c0-1.2-.9-2.1-2-2.5"/>
+        <path d="M9 21v-3M15 21v-3"/>
+      </svg>
+      Body
+    </button>
+    <button class="nav-item" data-section="more" onclick="navigateTo('more')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+      </svg>
+      More
+    </button>
+  </nav>
+
+</div><!-- /app -->
+
+<!-- ====================================================
+     GLOBAL MODALS
+     ==================================================== -->
+
+<div id="modal-backdrop" class="modal-backdrop"></div>
+
+<!-- Locked In Detail Sheet -->
+<div id="sheet-locked-in" class="bottom-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div class="sheet-title">Locked In Breakdown</div>
+    <span class="sheet-close" onclick="closeSheet('sheet-locked-in')">×</span>
+  </div>
+  <div class="sheet-content" id="sheet-locked-in-content"></div>
+</div>
+
+<!-- Food Search Sheet -->
+<div id="sheet-food-search" class="bottom-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div class="sheet-title">Add Food</div>
+    <span class="sheet-close" onclick="closeSheet('sheet-food-search')">×</span>
+  </div>
+  <div class="sheet-content">
+    <div class="search-bar">
+      <svg class="search-bar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="search" id="food-search-input" placeholder="Search food..." oninput="NutritionModule.searchFood(this.value)" />
+    </div>
+    <div id="food-search-results"></div>
+    <div style="margin-top:16px">
+      <div class="card-title">Quick Add</div>
+      <div id="food-quick-add"></div>
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn btn-ghost btn-full" onclick="NutritionModule.openManualEntry()">Manual Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manual Food Entry Sheet -->
+<div id="sheet-food-manual" class="bottom-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div class="sheet-title">Manual Entry</div>
+    <span class="sheet-close" onclick="closeSheet('sheet-food-manual')">×</span>
+  </div>
+  <div class="sheet-content">
+    <div class="field-group" style="margin-bottom:12px">
+      <label>Food Name</label>
+      <input type="text" id="manual-food-name" placeholder="e.g. Chicken breast" />
+    </div>
+    <div class="input-row">
+      <div class="field-group">
+        <label>Calories</label>
+        <input type="number" id="manual-food-cal" placeholder="0" min="0" />
+      </div>
+      <div class="field-group">
+        <label>Serving (g)</label>
+        <input type="number" id="manual-food-serving" placeholder="100" min="1" />
+      </div>
+    </div>
+    <div class="input-row" style="margin-top:12px">
+      <div class="field-group">
+        <label>Protein (g)</label>
+        <input type="number" id="manual-food-protein" placeholder="0" min="0" />
+      </div>
+      <div class="field-group">
+        <label>Carbs (g)</label>
+        <input type="number" id="manual-food-carbs" placeholder="0" min="0" />
+      </div>
+    </div>
+    <div class="input-row" style="margin-top:12px">
+      <div class="field-group">
+        <label>Fat (g)</label>
+        <input type="number" id="manual-food-fat" placeholder="0" min="0" />
+      </div>
+      <div class="field-group">
+        <label>Meal</label>
+        <select id="manual-food-meal">
+          <option value="Breakfast">Breakfast</option>
+          <option value="Lunch">Lunch</option>
+          <option value="Dinner">Dinner</option>
+          <option value="Snack">Snack</option>
+          <option value="Pre-Workout">Pre-Workout</option>
+          <option value="Post-Workout">Post-Workout</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-full" style="margin-top:20px" onclick="NutritionModule.addManualFood()">Add Food</button>
+  </div>
+</div>
+
+<!-- Exercise Search Sheet -->
+<div id="sheet-exercise-search" class="bottom-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div class="sheet-title">Add Exercise</div>
+    <span class="sheet-close" onclick="closeSheet('sheet-exercise-search')">×</span>
+  </div>
+  <div class="sheet-content">
+    <div class="search-bar">
+      <svg class="search-bar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="search" id="exercise-search-input" placeholder="Search exercises..." oninput="WorkoutModule.searchExercise(this.value)" />
+    </div>
+    <div id="exercise-search-results"></div>
+  </div>
+</div>
+
+<!-- Measurement Entry Sheet -->
+<div id="sheet-measurements" class="bottom-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div class="sheet-title">Log Measurements</div>
+    <span class="sheet-close" onclick="closeSheet('sheet-measurements')">×</span>
+  </div>
+  <div class="sheet-content">
+    <div class="input-row">
+      <div class="field-group">
+        <label>Weight (kg)</label>
+        <input type="number" id="m-weight" placeholder="0.0" step="0.1" min="30" max="300" />
+      </div>
+      <div class="field-group">
+        <label>Neck (cm)</label>
+        <input type="number" id="m-neck" placeholder="0" step="0.5" min="20" max="60" />
+      </div>
+    </div>
+    <div class="input-row" style="margin-top:12px">
+      <div class="field-group">
+        <label>Waist (cm)</label>
+        <input type="number" id="m-waist" placeholder="0" step="0.5" min="50" max="160" />
+      </div>
+      <div class="field-group">
+        <label>Hips (cm)</label>
+        <input type="number" id="m-hips" placeholder="0" step="0.5" min="60" max="180" />
+      </div>
+    </div>
+    <div class="input-row" style="margin-top:12px">
+      <div class="field-group">
+        <label>Chest (cm)</label>
+        <input type="number" id="m-chest" placeholder="0" step="0.5" />
+      </div>
+      <div class="field-group">
+        <label>L Arm (cm)</label>
+        <input type="number" id="m-left-arm" placeholder="0" step="0.5" />
+      </div>
+    </div>
+    <div class="input-row" style="margin-top:12px">
+      <div class="field-group">
+        <label>R Arm (cm)</label>
+        <input type="number" id="m-right-arm" placeholder="0" step="0.5" />
+      </div>
+      <div class="field-group">
+        <label>L Thigh (cm)</label>
+        <input type="number" id="m-left-leg" placeholder="0" step="0.5" />
+      </div>
+    </div>
+    <div class="input-row" style="margin-top:12px">
+      <div class="field-group">
+        <label>R Thigh (cm)</label>
+        <input type="number" id="m-right-leg" placeholder="0" step="0.5" />
+      </div>
+      <div class="field-group"></div>
+    </div>
+    <button class="btn btn-primary btn-full" style="margin-top:20px" onclick="MeasurementsModule.save()">Save Measurements</button>
+  </div>
+</div>
+
+<!-- Cardio Log Sheet -->
+<div id="sheet-cardio" class="bottom-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div class="sheet-title">Log Cardio</div>
+    <span class="sheet-close" onclick="closeSheet('sheet-cardio')">×</span>
+  </div>
+  <div class="sheet-content">
+    <div class="field-group" style="margin-bottom:12px">
+      <label>Type</label>
+      <select id="cardio-type">
+        <option>Run</option>
+        <option>Bike</option>
+        <option>Swim</option>
+        <option>Row</option>
+        <option>Elliptical</option>
+        <option>Jump Rope</option>
+        <option>Stair Climber</option>
+        <option>Walk</option>
+        <option>HIIT</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="input-row">
+      <div class="field-group">
+        <label>Duration (min)</label>
+        <input type="number" id="cardio-duration" placeholder="30" min="1" max="300" />
+      </div>
+      <div class="field-group">
+        <label>Distance (km)</label>
+        <input type="number" id="cardio-distance" placeholder="0" step="0.1" min="0" />
+      </div>
+    </div>
+    <div class="input-row" style="margin-top:12px">
+      <div class="field-group">
+        <label>Intensity (1-10)</label>
+        <input type="number" id="cardio-intensity" placeholder="7" min="1" max="10" />
+      </div>
+      <div class="field-group">
+        <label>Avg HR (bpm)</label>
+        <input type="number" id="cardio-hr" placeholder="optional" min="50" max="220" />
+      </div>
+    </div>
+    <div id="cardio-ai-advice" style="margin-top:12px"></div>
+    <button class="btn btn-primary btn-full" style="margin-top:16px" onclick="CardioModule.save()">Save Cardio</button>
+  </div>
+</div>
+
+<!-- Rest Timer (fixed overlay) -->
+<div class="rest-timer" id="rest-timer">
+  <div>
+    <div class="rest-timer-label">REST</div>
+    <div class="rest-timer-count" id="rest-timer-count">2:00</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <button class="btn btn-sm btn-ghost" onclick="WorkoutModule.addRestTime(30)">+30s</button>
+    <button class="btn btn-sm btn-ghost" onclick="WorkoutModule.skipRest()">Skip</button>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- ====================================================
+     SCRIPTS
+     ==================================================== -->
+<script src="js/db.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/onboarding.js"></script>
+<script src="js/gamification.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/workout.js"></script>
+<script src="js/nutrition.js"></script>
+<script src="js/cardio.js"></script>
+<script src="js/recovery.js"></script>
+<script src="js/measurements.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+// ---- PWA Install ----
+function installPWA() {
+  if (window._installPrompt) {
+    window._installPrompt.prompt();
+    window._installPrompt.userChoice.then(r => {
+      if (r.outcome === 'accepted') toast('Lock In installed!', 'success');
+      window._installPrompt = null;
+      document.getElementById('install-pwa-btn').style.display = 'none';
+    });
+  }
+}
+
+// ---- Register Service Worker ----
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      console.log('SW registered');
+    }).catch(err => console.log('SW failed:', err));
+  });
+}
+</script>
+
+</body>
+</html>

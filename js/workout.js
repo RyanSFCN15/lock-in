@@ -1,0 +1,626 @@
+/* ============================================================
+   LOCK IN — Workout Logger
+   ============================================================ */
+
+window.WorkoutModule = (() => {
+  let _profile = null;
+  let _workout = null; // current session
+  let _restTimerInterval = null;
+  let _restSeconds = 0;
+  let _travelMode = false;
+
+  const EXERCISE_DB = [
+    // Chest
+    { name:'Bench Press',       muscles:['Chest','Triceps','Shoulders'],  type:'barbell', cues:'Retract scapula, arch slightly, bar to lower chest' },
+    { name:'Incline Bench Press',muscles:['Chest','Shoulders','Triceps'], type:'barbell', cues:'30-45° incline, control the descent' },
+    { name:'Dumbbell Fly',      muscles:['Chest'],                        type:'dumbbell',cues:'Wide arc, slight elbow bend, feel stretch at bottom' },
+    { name:'Cable Fly',         muscles:['Chest'],                        type:'cable',   cues:'High to low for lower chest, constant tension' },
+    { name:'Chest Dip',         muscles:['Chest','Triceps'],              type:'bodyweight',cues:'Lean forward, go deep, feel chest stretch' },
+    { name:'Push-up',           muscles:['Chest','Triceps','Shoulders'],  type:'bodyweight',cues:'Full range, core tight, elbows at 45°' },
+    // Back
+    { name:'Deadlift',          muscles:['Back','Hamstrings','Glutes'],   type:'barbell', cues:'Hinge at hips, bar stays close, brace hard' },
+    { name:'Barbell Row',       muscles:['Back','Biceps'],                type:'barbell', cues:'Horizontal pull, squeeze shoulder blades, elbows back' },
+    { name:'Lat Pulldown',      muscles:['Back','Biceps'],                type:'cable',   cues:'Pull to upper chest, lean slightly back, squeeze lats' },
+    { name:'Seated Cable Row',  muscles:['Back','Biceps'],                type:'cable',   cues:'Neutral spine, pull to lower chest, retract blades' },
+    { name:'Pull-up',           muscles:['Back','Biceps'],                type:'bodyweight',cues:'Full hang to chin over bar, no kipping' },
+    { name:'Face Pull',         muscles:['Shoulders','Back'],             type:'cable',   cues:'Pull to forehead, elbows high, external rotation' },
+    { name:'Romanian Deadlift', muscles:['Hamstrings','Glutes'],          type:'barbell', cues:'Hinge, push hips back, feel hamstring stretch' },
+    // Shoulders
+    { name:'Overhead Press',    muscles:['Shoulders','Triceps'],          type:'barbell', cues:'Vertical bar path, brace core, press through mid-foot' },
+    { name:'Dumbbell OHP',      muscles:['Shoulders','Triceps'],          type:'dumbbell',cues:'Neutral grip option, control the descent, elbows slightly forward' },
+    { name:'Lateral Raise',     muscles:['Shoulders'],                    type:'dumbbell',cues:'Slight lean, raise to shoulder height, lead with elbows' },
+    { name:'Rear Delt Fly',     muscles:['Shoulders','Back'],             type:'dumbbell',cues:'Hinge over, lead with elbows, squeeze rear delts' },
+    { name:'Arnold Press',      muscles:['Shoulders'],                    type:'dumbbell',cues:'Rotate through full ROM, control every degree' },
+    // Arms
+    { name:'Barbell Curl',      muscles:['Biceps'],                       type:'barbell', cues:'No swinging, full extension at bottom, peak contraction at top' },
+    { name:'Hammer Curl',       muscles:['Biceps'],                       type:'dumbbell',cues:'Neutral grip, strict form, both heads targeted' },
+    { name:'Incline Curl',      muscles:['Biceps'],                       type:'dumbbell',cues:'Full stretch at bottom, great long-head activation' },
+    { name:'Tricep Pushdown',   muscles:['Triceps'],                      type:'cable',   cues:'Elbows pinned, full extension, squeeze at bottom' },
+    { name:'Skull Crusher',     muscles:['Triceps'],                      type:'barbell', cues:'Lower to forehead, elbows slightly back, all three heads' },
+    { name:'Overhead Tricep',   muscles:['Triceps'],                      type:'dumbbell',cues:'Elbow to ceiling, full stretch and extension' },
+    { name:'Dip',               muscles:['Triceps','Chest'],              type:'bodyweight',cues:'Upright torso for triceps, wide elbows for chest' },
+    // Legs
+    { name:'Squat',             muscles:['Quads','Glutes','Hamstrings'],  type:'barbell', cues:'Knees track toes, hit depth, drive through full foot' },
+    { name:'Front Squat',       muscles:['Quads'],                        type:'barbell', cues:'Elbows high, upright torso, quad dominant' },
+    { name:'Leg Press',         muscles:['Quads','Glutes'],               type:'machine', cues:'Full ROM, don\'t lock out, press through heels' },
+    { name:'Leg Curl',          muscles:['Hamstrings'],                   type:'machine', cues:'Full extension, curl to full contraction, no hip movement' },
+    { name:'Leg Extension',     muscles:['Quads'],                        type:'machine', cues:'Full ROM, squeeze at top, control descent' },
+    { name:'Calf Raise',        muscles:['Calves'],                       type:'machine', cues:'Full stretch at bottom, hold at top, slow tempo' },
+    { name:'Hip Thrust',        muscles:['Glutes'],                       type:'barbell', cues:'Shoulder blades on bench, drive hips up, squeeze glutes hard' },
+    { name:'Bulgarian Split Squat',muscles:['Quads','Glutes'],            type:'dumbbell',cues:'Vertical shin, upright torso, control the descent' },
+    // Core
+    { name:'Plank',             muscles:['Core'],                         type:'bodyweight',cues:'Neutral spine, squeeze everything, breathe' },
+    { name:'Ab Wheel',          muscles:['Core'],                         type:'other',   cues:'Don\'t let hips sag, control the return, full extension' },
+    { name:'Hanging Leg Raise', muscles:['Core'],                         type:'bodyweight',cues:'No swinging, controlled raise, squeeze at top' },
+    { name:'Cable Crunch',      muscles:['Core'],                         type:'cable',   cues:'Hinge at hips, round the back, squeeze abs hard' },
+    // Cardio-style lifts
+    { name:'Kettlebell Swing',  muscles:['Glutes','Hamstrings','Core'],   type:'other',   cues:'Hip hinge not squat, explosive hip snap, arms passive' },
+    { name:'Clean and Press',   muscles:['Shoulders','Back','Legs'],      type:'barbell', cues:'Triple extension, catch in rack position, press overhead' },
+  ];
+
+  async function init(profile) {
+    _profile = profile;
+    _workout = await DB.getTodayWorkout();
+    await render();
+  }
+
+  async function render() {
+    const container = document.getElementById('workout-content');
+    if (!container) return;
+
+    _workout = _workout || await DB.getTodayWorkout();
+    const todayRecovery = await DB.getTodayRecovery();
+    const split = _profile?.split;
+
+    // Determine today's split day
+    const dayOfWeek = new Date().getDay(); // 0=Sun, 1=Mon...
+    const splitIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const todaySplitDay = split?.days?.[splitIndex] || 'Training';
+    const isRest = todaySplitDay === 'Rest';
+
+    if (isRest && !_workout?.exercises?.length) {
+      container.innerHTML = renderRestDayView(todayRecovery);
+      return;
+    }
+
+    // Comeback mode
+    const streak = await DB.getStreak();
+    if (streak.current === 0 && streak.lastDate) {
+      const daysMissed = Math.floor((new Date() - new Date(streak.lastDate + 'T12:00:00')) / 86400000);
+      if (daysMissed >= 5) {
+        renderComebackMode(container, daysMissed);
+        return;
+      }
+    }
+
+    const defaultExercises = split?.exercises?.[todaySplitDay] || [];
+
+    if (!_workout) {
+      _workout = {
+        splitDay: todaySplitDay,
+        exercises: defaultExercises.map(name => ({
+          name,
+          targetMuscles: getExerciseMuscles(name),
+          sets: [{ weight: '', reps: '', rpe: '', completed: false }],
+        })),
+        completed: false,
+        startTime: Date.now(),
+      };
+    }
+
+    container.innerHTML = `
+      <!-- Workout header -->
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div>
+            <div style="font-size:18px;font-weight:900">${todaySplitDay}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${_workout.exercises?.length || 0} exercises</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm btn-ghost" onclick="WorkoutModule.toggleTravel()" style="${_travelMode ? 'border-color:var(--blue);color:var(--blue)' : ''}">✈️ ${_travelMode ? 'Travel ON' : 'Travel'}</button>
+            ${_workout.completed ? '<span class="chip green">✓ Done</span>' : ''}
+          </div>
+        </div>
+        ${todayRecovery ? `
+        <div style="font-size:12px;color:var(--text-muted)">Readiness: <span style="color:${todayRecovery.readiness>=7?'var(--green)':todayRecovery.readiness>=5?'var(--yellow)':'var(--accent)'};font-weight:700">${todayRecovery.readiness}/10</span> · Sleep: ${todayRecovery.sleep}h · Soreness: ${todayRecovery.soreness}/10</div>
+        ` : '<div style="font-size:12px;color:var(--accent)">⚠️ Log recovery for AI-adjusted intensity</div>'}
+      </div>
+
+      <!-- AI Warm-up -->
+      <div id="warmup-section" class="card" style="margin-bottom:12px">
+        <div class="card-title">🔥 Warm-up</div>
+        <div id="warmup-content">
+          <button class="btn btn-ghost btn-full btn-sm" onclick="WorkoutModule.loadWarmup()">Generate AI Warm-up →</button>
+        </div>
+      </div>
+
+      <!-- Exercises -->
+      <div id="exercise-list">
+        ${(_workout.exercises || []).map((ex, idx) => renderExerciseCard(ex, idx)).join('')}
+      </div>
+
+      <!-- Add exercise -->
+      <button class="btn btn-ghost btn-full" style="margin-bottom:12px" onclick="openSheet('sheet-exercise-search')">+ Add Exercise</button>
+
+      <!-- Finish workout -->
+      ${!_workout.completed ? `
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-title">Finish Workout</div>
+        <div class="field-group" style="margin-bottom:12px">
+          <label>Rating (1-10)</label>
+          <div class="pill-group">
+            ${[1,2,3,4,5,6,7,8,9,10].map(n => `<div class="pill ${_workout.rating==n?'selected':''}" onclick="WorkoutModule.setRating(${n})">${n}</div>`).join('')}
+          </div>
+        </div>
+        <div class="field-group" style="margin-bottom:12px">
+          <label>Notes</label>
+          <textarea id="workout-notes" placeholder="How'd it feel?" style="min-height:60px">${_workout.notes||''}</textarea>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="WorkoutModule.finishWorkout()">Finish Workout 🏁</button>
+      </div>` : `
+      <div class="card card-green">
+        <div style="font-size:16px;font-weight:900;color:var(--green);margin-bottom:8px">✓ Workout Complete!</div>
+        <div style="font-size:14px;color:var(--text-muted)">Rating: ${_workout.rating}/10</div>
+        ${_workout.notes ? `<div style="font-size:13px;color:var(--text-muted);margin-top:6px">${_workout.notes}</div>` : ''}
+      </div>`}
+
+      <!-- Plate Calculator -->
+      <div class="card">
+        <div class="card-title">🏋️ Plate Calculator</div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+          <input type="number" id="plate-calc-input" placeholder="Target kg" style="flex:1" oninput="WorkoutModule.calcPlates()" />
+          <div style="font-size:13px;color:var(--text-muted)">Bar: 20kg</div>
+        </div>
+        <div id="plate-calc-result"></div>
+      </div>
+
+      <!-- Volume landmarks -->
+      <div class="card">
+        <div class="card-title">📊 Weekly Volume</div>
+        <div id="volume-landmarks"></div>
+      </div>
+
+      <div style="height:8px"></div>
+    `;
+
+    // Load volume landmarks
+    updateVolumeLandmarks();
+  }
+
+  function renderExerciseCard(ex, idx) {
+    const sets = ex.sets || [];
+    const completedSets = sets.filter(s => s.completed);
+    const prevSets = ex.previousSets || [];
+
+    return `
+      <div class="exercise-card" id="ex-card-${idx}">
+        <div class="exercise-header">
+          <div>
+            <div class="exercise-name">${ex.name}</div>
+            <div class="exercise-muscle">${(ex.targetMuscles || []).join(' · ')}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:13px;color:var(--text-muted)">${completedSets.length}/${sets.length} sets</span>
+            <button class="btn btn-icon btn-ghost" style="font-size:18px" onclick="WorkoutModule.removeExercise(${idx})">×</button>
+          </div>
+        </div>
+
+        <!-- Form cue -->
+        ${ex.cues ? `<div style="padding:8px 16px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border)">💡 ${ex.cues}</div>` : ''}
+
+        <!-- Set table header -->
+        <div style="padding:8px 16px 4px;display:grid;grid-template-columns:32px 1fr 1fr 56px;gap:8px;font-size:11px;color:var(--text-dim);font-weight:700;text-transform:uppercase;letter-spacing:1px">
+          <span>#</span><span>WEIGHT</span><span>REPS</span><span>DONE</span>
+        </div>
+
+        <div class="set-table" id="set-table-${idx}">
+          ${sets.map((set, si) => renderSetRow(ex, idx, set, si, prevSets[si])).join('')}
+        </div>
+
+        <div style="padding:8px 16px;display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="WorkoutModule.addSet(${idx})">+ Set</button>
+          <button class="btn btn-ghost btn-sm" onclick="WorkoutModule.loadFormCues(${idx})" style="font-size:12px">🎯 Cues</button>
+          <button class="btn btn-ghost btn-sm" onclick="WorkoutModule.loadNextTarget(${idx})" style="font-size:12px">⬆️ Next</button>
+        </div>
+
+        <div id="ai-next-${idx}" style="padding:0 16px 12px;font-size:13px;color:var(--text-muted)"></div>
+      </div>
+    `;
+  }
+
+  function renderSetRow(ex, exIdx, set, setIdx, prevSet) {
+    const isCompleted = set.completed;
+    const prFlag = set.isPR ? ' pr' : '';
+    const prevInfo = prevSet ? `${prevSet.weight}kg×${prevSet.reps}` : '';
+
+    return `
+      <div class="set-row" id="set-row-${exIdx}-${setIdx}">
+        <div class="set-num${isCompleted ? ' completed' : ''}${prFlag}">${setIdx + 1}</div>
+        <input class="set-input" type="number" step="2.5" min="0" max="500"
+          value="${set.weight || ''}" placeholder="${prevSet?.weight || '0'}"
+          onchange="WorkoutModule.updateSet(${exIdx}, ${setIdx}, 'weight', this.value)"
+          ${isCompleted ? 'readonly' : ''} />
+        <input class="set-input" type="number" min="1" max="100"
+          value="${set.reps || ''}" placeholder="${prevSet?.reps || '0'}"
+          onchange="WorkoutModule.updateSet(${exIdx}, ${setIdx}, 'reps', this.value)"
+          ${isCompleted ? 'readonly' : ''} />
+        <button class="set-complete-btn${isCompleted ? ' done' : ''}"
+          onclick="WorkoutModule.completeSet(${exIdx}, ${setIdx})">
+          ${isCompleted ? '✓' : '○'}
+        </button>
+      </div>
+      ${prevInfo ? `<div style="grid-column:2/-1;font-size:10px;color:var(--text-dim);padding:0 0 4px;margin-top:-6px">prev: ${prevInfo}</div>` : ''}
+    `;
+  }
+
+  function renderRestDayView(recovery) {
+    return `
+      <div class="card card-accent">
+        <div class="card-title" style="font-size:20px;font-weight:900;color:var(--text)">Rest Day 😴</div>
+        <div style="font-size:14px;color:var(--text-muted);margin-bottom:16px">Recovery is where the gains are made.</div>
+        ${recovery ? `
+          <div style="font-size:14px">Sleep: <strong>${recovery.sleep}h</strong> · Readiness: <strong>${recovery.readiness}/10</strong></div>
+        ` : `<button class="btn btn-ghost btn-full btn-sm" onclick="navigateTo('body')">Log Recovery →</button>`}
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn btn-primary btn-full" onclick="WorkoutModule.startCustomWorkout()">Train Anyway +</button>
+      </div>
+    `;
+  }
+
+  async function renderComebackMode(container, daysMissed) {
+    container.innerHTML = `
+      <div class="card card-accent">
+        <div style="font-size:22px;font-weight:900;margin-bottom:8px">Welcome back 👊</div>
+        <div style="font-size:14px;color:var(--text-muted);margin-bottom:16px">You've been off ${daysMissed} days. Let's ease back in.</div>
+        <div id="comeback-plan" class="ai-card">
+          <div class="ai-card-label">⚡ COMEBACK PLAN</div>
+          <div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>
+        </div>
+        <button class="btn btn-primary btn-full" style="margin-top:12px" onclick="WorkoutModule.startCustomWorkout()">Start Comeback Workout</button>
+      </div>
+    `;
+
+    if (AI.isAvailable()) {
+      AI.getComingBackPlan(daysMissed).then(plan => {
+        const el = document.getElementById('comeback-plan');
+        if (el && plan) el.innerHTML = `<div class="ai-card-label">⚡ COMEBACK PLAN</div><div class="ai-card-text" style="white-space:pre-line">${plan}</div>`;
+      });
+    }
+  }
+
+  // ---- Actions ----
+
+  function updateSet(exIdx, setIdx, field, value) {
+    if (!_workout?.exercises?.[exIdx]?.sets?.[setIdx]) return;
+    _workout.exercises[exIdx].sets[setIdx][field] = field === 'weight' ? parseFloat(value) : parseInt(value);
+    saveWorkout();
+  }
+
+  async function completeSet(exIdx, setIdx) {
+    const ex = _workout?.exercises?.[exIdx];
+    const set = ex?.sets?.[setIdx];
+    if (!set) return;
+
+    set.completed = !set.completed;
+    if (set.completed) {
+      // Check 1RM and PR
+      if (set.weight && set.reps) {
+        const orm = epley1RM(set.weight, set.reps);
+        const prs = await DB.getPRs();
+        const prevPR = prs[ex.name]?.orm || 0;
+        if (orm > prevPR) {
+          set.isPR = true;
+          toast(`🏆 NEW PR on ${ex.name}! 1RM ~${orm}kg`, 'gold', 4000);
+          await Gamification.checkPRBadge();
+        }
+        // Award XP
+        for (const muscle of (ex.targetMuscles || [])) {
+          await Gamification.awardMuscleXP(muscle, 15);
+        }
+      }
+
+      // Start rest timer
+      startRestTimer();
+    }
+
+    // Re-render set row
+    const rowEl = document.getElementById(`set-row-${exIdx}-${setIdx}`);
+    if (rowEl) {
+      const prevSet = ex.previousSets?.[setIdx];
+      rowEl.outerHTML = renderSetRow(ex, exIdx, set, setIdx, prevSet);
+    }
+
+    await saveWorkout();
+  }
+
+  function addSet(exIdx) {
+    if (!_workout?.exercises?.[exIdx]) return;
+    const ex = _workout.exercises[exIdx];
+    const lastSet = ex.sets[ex.sets.length - 1] || {};
+    ex.sets.push({ weight: lastSet.weight || '', reps: lastSet.reps || '', rpe: '', completed: false });
+
+    const table = document.getElementById(`set-table-${exIdx}`);
+    if (table) {
+      const newIdx = ex.sets.length - 1;
+      const div = document.createElement('div');
+      div.innerHTML = renderSetRow(ex, exIdx, ex.sets[newIdx], newIdx, ex.previousSets?.[newIdx]);
+      table.appendChild(div.firstChild);
+    }
+    saveWorkout();
+  }
+
+  function removeExercise(idx) {
+    if (!_workout?.exercises) return;
+    _workout.exercises.splice(idx, 1);
+    render();
+    saveWorkout();
+  }
+
+  function setRating(n) {
+    if (_workout) {
+      _workout.rating = n;
+      document.querySelectorAll('.pill').forEach(p => {
+        if (p.textContent == n) p.classList.add('selected');
+        else if ([1,2,3,4,5,6,7,8,9,10].includes(parseInt(p.textContent))) p.classList.remove('selected');
+      });
+    }
+  }
+
+  async function finishWorkout() {
+    if (!_workout) return;
+    _workout.completed = true;
+    _workout.notes = document.getElementById('workout-notes')?.value || '';
+    _workout.endTime = Date.now();
+    await saveWorkout();
+    await Gamification.processWorkoutXP(_workout);
+    await Gamification.updateChallengeProgress('workout');
+    await refreshStreakHeader();
+    toast('Workout logged! 💪', 'success', 3000);
+    await render();
+  }
+
+  async function saveWorkout() {
+    if (!_workout) return;
+    await DB.saveWorkoutLog(_workout);
+  }
+
+  function startCustomWorkout() {
+    _workout = {
+      splitDay: 'Custom',
+      exercises: [],
+      completed: false,
+      startTime: Date.now(),
+    };
+    render();
+  }
+
+  // ---- Rest Timer ----
+
+  function startRestTimer(seconds = 90) {
+    _restSeconds = seconds;
+    stopRestTimer();
+    const timerEl = document.getElementById('rest-timer');
+    if (timerEl) timerEl.classList.add('visible');
+    updateRestDisplay();
+    _restTimerInterval = setInterval(() => {
+      _restSeconds--;
+      updateRestDisplay();
+      if (_restSeconds <= 0) {
+        stopRestTimer();
+        toast('Rest done — next set! 💪', 'success', 3000);
+      }
+    }, 1000);
+  }
+
+  function updateRestDisplay() {
+    const el = document.getElementById('rest-timer-count');
+    if (el) {
+      const m = Math.floor(Math.abs(_restSeconds) / 60);
+      const s = Math.abs(_restSeconds) % 60;
+      el.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+      el.style.color = _restSeconds <= 10 ? 'var(--accent)' : 'var(--accent)';
+    }
+  }
+
+  function stopRestTimer() {
+    if (_restTimerInterval) { clearInterval(_restTimerInterval); _restTimerInterval = null; }
+    const timerEl = document.getElementById('rest-timer');
+    if (timerEl) timerEl.classList.remove('visible');
+  }
+
+  function addRestTime(secs) { _restSeconds += secs; updateRestDisplay(); }
+  function skipRest() { stopRestTimer(); }
+
+  // ---- AI Features ----
+
+  async function loadWarmup() {
+    const el = document.getElementById('warmup-content');
+    if (!el) return;
+    el.innerHTML = '<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+    if (!AI.isAvailable()) { el.innerHTML = AI.unavailableHTML(); return; }
+    const muscles = [...new Set((_workout?.exercises || []).flatMap(e => e.targetMuscles || []))];
+    const plan = await AI.getWarmupPlan(muscles.length ? muscles : ['General']);
+    el.innerHTML = `<div style="font-size:13px;line-height:1.7;white-space:pre-line;color:var(--text-muted)">${plan}</div>`;
+  }
+
+  async function loadFormCues(exIdx) {
+    const ex = _workout?.exercises?.[exIdx];
+    if (!ex) return;
+    const el = document.getElementById(`ai-next-${exIdx}`);
+    if (!el) return;
+    el.innerHTML = '<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+    if (!AI.isAvailable()) { el.innerHTML = 'Connect AI in Settings for form cues.'; return; }
+    const cues = await AI.getFormCues(ex.name);
+    el.innerHTML = `<strong>Form Cues:</strong><br><div style="white-space:pre-line">${cues}</div>`;
+  }
+
+  async function loadNextTarget(exIdx) {
+    const ex = _workout?.exercises?.[exIdx];
+    if (!ex) return;
+    const el = document.getElementById(`ai-next-${exIdx}`);
+    if (!el) return;
+    el.innerHTML = '<div class="ai-loading"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>';
+    if (!AI.isAvailable()) { el.innerHTML = 'Connect AI for next-set recommendations.'; return; }
+    const completedSets = ex.sets.filter(s => s.completed && s.weight && s.reps);
+    if (!completedSets.length) { el.innerHTML = 'Complete some sets first.'; return; }
+    const rec = await AI.getNextSetRecommendation(ex.name, completedSets, _profile?.goal || 'strength');
+    el.innerHTML = `<span style="color:var(--green);font-weight:700">⬆️ Next:</span> ${rec}`;
+  }
+
+  async function toggleTravel() {
+    _travelMode = !_travelMode;
+    if (_travelMode && AI.isAvailable()) {
+      toast('Travel mode: generating bodyweight workout...', '', 3000);
+      const plan = await AI.getTravelWorkout();
+      // Parse exercises from AI response
+      toast('Travel workout ready!', 'success');
+    }
+    render();
+  }
+
+  // ---- Exercise search ----
+
+  function searchExercise(query) {
+    const results = document.getElementById('exercise-search-results');
+    if (!results) return;
+    const q = query.toLowerCase().trim();
+    const matches = q ? EXERCISE_DB.filter(e =>
+      e.name.toLowerCase().includes(q) ||
+      e.muscles.some(m => m.toLowerCase().includes(q))
+    ) : EXERCISE_DB.slice(0, 20);
+
+    results.innerHTML = `<div class="search-results">
+      ${matches.map(ex => `
+        <div class="search-result-item" onclick="WorkoutModule.addExercise('${ex.name.replace(/'/g, "\\'")}')">
+          <div class="search-result-name">${ex.name}</div>
+          <div class="search-result-meta">${ex.muscles.join(' · ')} · ${ex.type}</div>
+        </div>
+      `).join('')}
+      ${!matches.length ? '<div style="padding:16px;color:var(--text-muted);font-size:14px">No exercises found</div>' : ''}
+      <div class="search-result-item" onclick="WorkoutModule.addCustomExercise('${(q||'').replace(/'/g,'\\'')}')">
+        <div class="search-result-name">+ Add "${q || 'Custom'}"</div>
+        <div class="search-result-meta">Custom exercise</div>
+      </div>
+    </div>`;
+  }
+
+  function addExercise(name) {
+    if (!_workout) _workout = { splitDay: 'Custom', exercises: [], completed: false, startTime: Date.now() };
+    const exDef = EXERCISE_DB.find(e => e.name === name) || { name, muscles: [], type: 'other', cues: '' };
+    _workout.exercises = _workout.exercises || [];
+    _workout.exercises.push({
+      name: exDef.name,
+      targetMuscles: exDef.muscles,
+      cues: exDef.cues,
+      sets: [{ weight: '', reps: '', rpe: '', completed: false }],
+    });
+    closeSheet('sheet-exercise-search');
+    document.getElementById('exercise-search-input').value = '';
+    render();
+    saveWorkout();
+  }
+
+  function addCustomExercise(name) {
+    if (!name) return;
+    addExercise(name.trim() || 'Custom Exercise');
+  }
+
+  function openExerciseSearch() {
+    openSheet('sheet-exercise-search');
+  }
+
+  // ---- Volume landmarks ----
+
+  async function updateVolumeLandmarks() {
+    const el = document.getElementById('volume-landmarks');
+    if (!el) return;
+
+    const weekAgo = (() => { const d = new Date(); d.setDate(d.getDate()-7); return d.toISOString().split('T')[0]; })();
+    const recent = await DB.getLogsRange('workoutLogs', weekAgo, today());
+
+    const muscleWeeklySets = {};
+    for (const w of recent) {
+      for (const ex of (w.exercises || [])) {
+        const doneSets = (ex.sets || []).filter(s => s.completed).length;
+        for (const m of (ex.targetMuscles || [])) {
+          muscleWeeklySets[m] = (muscleWeeklySets[m] || 0) + doneSets;
+        }
+      }
+    }
+
+    const landmarks = Object.entries(VOLUME_LANDMARKS).slice(0, 6);
+    el.innerHTML = landmarks.map(([muscle, lm]) => {
+      const sets = muscleWeeklySets[muscle] || 0;
+      const maxSets = lm.mrv + 2;
+      const pct = Math.min(100, Math.round(sets / maxSets * 100));
+      let color = 'var(--text-dim)';
+      let status = 'Below MEV';
+      if (sets >= lm.mrv) { color = 'var(--accent)'; status = 'At MRV'; }
+      else if (sets >= lm.mav) { color = 'var(--green)'; status = 'In MAV'; }
+      else if (sets >= lm.mev) { color = 'var(--yellow)'; status = 'Above MEV'; }
+
+      return `
+        <div class="volume-bar-wrap" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:80px;font-size:12px;font-weight:700;flex-shrink:0">${muscle}</div>
+          <div style="flex:1">
+            <div class="progress-bar-track" style="height:6px">
+              <div class="progress-bar-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:${color};min-width:60px;text-align:right">${sets} sets · ${status}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ---- Plate calculator ----
+
+  function calcPlates() {
+    const val = parseFloat(document.getElementById('plate-calc-input')?.value);
+    const el = document.getElementById('plate-calc-result');
+    if (!el) return;
+    if (!val || val < 20) { el.innerHTML = ''; return; }
+
+    const plates = window.calcPlates(val, 20);
+    if (!plates) { el.innerHTML = '<div style="color:var(--accent);font-size:13px">Below bar weight (20kg)</div>'; return; }
+
+    const colors = { 25:'#2563eb', 20:'#16a34a', 15:'#7c3aed', 10:'#fff', 5:'#d97706', 2.5:'#9333ea', 1.25:'#888' };
+
+    el.innerHTML = `
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px">${val}kg total</div>
+      <div class="plate-visual">
+        ${plates.map(p => Array(p.count).fill(0).map(() => `
+          <div style="width:18px;height:${32+p.weight}px;background:${colors[p.weight]||'#888'};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#000;writing-mode:vertical-lr">${p.weight}</div>
+        `).join('')).join('')}
+        <div class="bar"></div>
+        ${plates.map(p => Array(p.count).fill(0).map(() => `
+          <div style="width:18px;height:${32+p.weight}px;background:${colors[p.weight]||'#888'};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#000;writing-mode:vertical-lr">${p.weight}</div>
+        `).join('')).join('')}
+      </div>
+      <div style="font-size:12px;color:var(--text-muted)">Per side: ${plates.map(p => `${p.count}×${p.weight}kg`).join(', ') || 'bar only'}</div>
+    `;
+  }
+
+  // ---- Helpers ----
+
+  function getExerciseMuscles(name) {
+    const found = EXERCISE_DB.find(e => e.name === name);
+    return found?.muscles || [];
+  }
+
+  // Section refresh
+  window.addEventListener('sectionShown', async (e) => {
+    if (e.detail === 'workout') {
+      _workout = await DB.getTodayWorkout();
+      await render();
+    }
+  });
+
+  return {
+    init, render, updateSet, completeSet, addSet, removeExercise, setRating, finishWorkout,
+    startCustomWorkout, addRestTime, skipRest, loadWarmup, loadFormCues, loadNextTarget,
+    toggleTravel, searchExercise, addExercise, addCustomExercise, openExerciseSearch, calcPlates,
+    EXERCISE_DB,
+  };
+})();

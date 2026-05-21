@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#0a0a0a"/>
+  <rect width="512" height="512" rx="80" fill="url(#g)"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff3b3b"/>
+      <stop offset="100%" stop-color="#cc0000"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="80" fill="#0a0a0a"/>
+  <!-- Lock icon -->
+  <rect x="156" y="240" width="200" height="160" rx="16" fill="#ff3b3b"/>
+  <path d="M192 240 V190 Q192 140 256 140 Q320 140 320 190 V240" fill="none" stroke="#ff3b3b" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="256" cy="310" r="20" fill="#0a0a0a"/>
+  <rect x="248" y="310" width="16" height="40" rx="8" fill="#0a0a0a"/>
+  <!-- LI text -->
+  <text x="256" y="460" font-family="Arial Black, sans-serif" font-size="48" font-weight="900" fill="#ff3b3b" text-anchor="middle" letter-spacing="4">LOCK IN</text>
+</svg>
