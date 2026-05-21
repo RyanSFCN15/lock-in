@@ -61,7 +61,7 @@ window.WorkoutModule = (() => {
 
   async function init(profile) {
     _profile = profile;
-    _workout = await DB.getTodayWorkout();
+    try { _workout = await DB.getTodayWorkout(); } catch(e) { _workout = null; }
     await render();
   }
 
@@ -69,11 +69,14 @@ window.WorkoutModule = (() => {
     const container = document.getElementById('workout-content');
     if (!container) return;
 
-    _workout = _workout || await DB.getTodayWorkout();
-    const todayRecovery = await DB.getTodayRecovery();
-    const split = _profile?.split;
+    // --- Load data defensively — never let a DB error crash the render ---
+    if (!_workout) {
+      try { _workout = await DB.getTodayWorkout(); } catch(e) { _workout = null; }
+    }
+    let todayRecovery = null;
+    try { todayRecovery = await DB.getTodayRecovery(); } catch(e) {}
 
-    // Determine today's split day (respect custom schedule from settings)
+    const split = _profile?.split;
     const workoutSchedule = window._settings?.workoutSchedule;
     const dayOfWeek = new Date().getDay(); // 0=Sun
     const splitIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -86,66 +89,14 @@ window.WorkoutModule = (() => {
       _stopSessionTimer();
       const dur = _workout.endTime && _workout.startTime
         ? Math.round((_workout.endTime - _workout.startTime) / 60000) : 0;
-      const totalSets = (_workout.exercises||[]).reduce((a,e)=>a+(e.sets||[]).filter(s=>s.completed).length,0);
+      const totalSets = (_workout.exercises||[]).reduce((a,e)=>a+(e.sets||[]).filter(s=>s.completed).length, 0);
       container.innerHTML = `
         <div class="card card-green" style="text-align:center;padding:24px 16px;margin-bottom:12px">
           <div style="font-size:40px;margin-bottom:8px">🏁</div>
           <div style="font-size:22px;font-weight:900;color:var(--green)">Workout Complete!</div>
-          <div style="font-size:14px;color:var(--text-muted);margin:8px 0">${_workout.splitDay} · ${_workout.exercises?.length||0} exercises · ${totalSets} sets${dur ? ` · ${dur} min` : ''}</div>
-          ${_workout.rating ? `<div style="font-size:13px;color:var(--text-muted)">Rating: ${_workout.rating}/10</div>` : ''}
-          ${_workout.notes ? `<div style="font-size:13px;color:var(--text-muted);margin-top:4px">"${_workout.notes}"</div>` : ''}
+          <div style="font-size:14px;color:var(--text-muted);margin:8px 0">${_workout.splitDay || 'Workout'} · ${_workout.exercises?.length||0} exercises · ${totalSets} sets${dur ? ` · ${dur} min` : ''}</div>
         </div>
         <button class="btn btn-ghost btn-full" style="margin-bottom:12px" onclick="WorkoutModule.startCustomWorkout()">+ Start Another Workout</button>
-        <div class="card">
-          <div class="card-title">🏋️ Plate Calculator</div>
-          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-            <input type="number" id="plate-calc-input" placeholder="Target kg" style="flex:1" oninput="WorkoutModule.calcPlates()" />
-            <div style="font-size:13px;color:var(--text-muted)">Bar: 20kg</div>
-          </div>
-          <div id="plate-calc-result"></div>
-        </div>
-        <div class="card"><div class="card-title">📊 Weekly Volume</div><div id="volume-landmarks"></div></div>
-        <div style="height:8px"></div>
-      `;
-      updateVolumeLandmarks();
-      return;
-    }
-
-    // ---- REST DAY (no active workout) ----
-    if (isRest && !_workout) {
-      container.innerHTML = renderRestDayView(todayRecovery);
-      return;
-    }
-
-    // ---- PRE-WORKOUT: show start screen ----
-    if (!_workout) {
-      const defaultExercises = split?.exercises?.[todaySplitDay] || [];
-      const comeback = await _checkComeback();
-      container.innerHTML = `
-        ${comeback ? comeback : ''}
-        <div class="card" style="margin-bottom:12px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <div>
-              <div style="font-size:20px;font-weight:900">${todaySplitDay}</div>
-              <div style="font-size:12px;color:var(--text-muted)">Today's session</div>
-            </div>
-            ${todayRecovery ? `<div style="text-align:right;font-size:12px;color:var(--text-muted)">
-              Readiness <span style="color:${todayRecovery.readiness>=7?'var(--green)':todayRecovery.readiness>=5?'var(--yellow)':'var(--accent)'};font-weight:700">${todayRecovery.readiness}/10</span>
-            </div>` : ''}
-          </div>
-          ${defaultExercises.length ? `
-            <div style="margin-bottom:12px">
-              <div style="font-size:12px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Planned</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px">
-                ${defaultExercises.map(e => `<span style="background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px">${e}</span>`).join('')}
-              </div>
-            </div>
-          ` : ''}
-          <button class="btn btn-primary btn-full" style="font-size:18px;letter-spacing:2px;min-height:56px" onclick="WorkoutModule.startWorkout()">
-            START WORKOUT
-          </button>
-          <button class="btn btn-ghost btn-full btn-sm" style="margin-top:8px" onclick="WorkoutModule.toggleTravel()">✈️ Travel / Hotel Mode</button>
-        </div>
         <div class="card"><div class="card-title">🏋️ Plate Calculator</div>
           <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
             <input type="number" id="plate-calc-input" placeholder="Target kg" style="flex:1" oninput="WorkoutModule.calcPlates()" />
@@ -153,42 +104,78 @@ window.WorkoutModule = (() => {
           </div>
           <div id="plate-calc-result"></div>
         </div>
-        <div class="card"><div class="card-title">📊 Weekly Volume</div><div id="volume-landmarks"></div></div>
         <div style="height:8px"></div>
       `;
-      updateVolumeLandmarks();
+      return;
+    }
+
+    // ---- PRE-WORKOUT: show start screen ----
+    if (!_workout) {
+      const defaultExercises = split?.exercises?.[todaySplitDay] || [];
+      const readinessHtml = todayRecovery?.readiness
+        ? `<span style="color:${todayRecovery.readiness>=7?'var(--green)':todayRecovery.readiness>=5?'var(--yellow)':'var(--accent)'};font-weight:700">${todayRecovery.readiness}/10 readiness</span>`
+        : '';
+
+      container.innerHTML = `
+        ${isRest ? `<div class="card card-accent" style="margin-bottom:12px">
+          <div style="font-size:18px;font-weight:900">Rest Day 😴</div>
+          <div style="font-size:14px;color:var(--text-muted);margin-top:4px">Recovery is where the gains are made.</div>
+        </div>` : ''}
+
+        <div class="card" style="margin-bottom:12px">
+          <div style="font-size:22px;font-weight:900;margin-bottom:4px">${todaySplitDay}</div>
+          ${readinessHtml ? `<div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">${readinessHtml}</div>` : '<div style="height:12px"></div>'}
+
+          ${defaultExercises.length ? `
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+              ${defaultExercises.map(e => `<span style="background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px">${e}</span>`).join('')}
+            </div>
+          ` : ''}
+
+          <button class="btn btn-primary btn-full" style="font-size:18px;letter-spacing:2px;min-height:60px;font-weight:900" onclick="WorkoutModule.startWorkout()">
+            ▶ START WORKOUT
+          </button>
+          ${isRest ? `<button class="btn btn-ghost btn-full btn-sm" style="margin-top:8px" onclick="WorkoutModule.startCustomWorkout()">Train anyway</button>` : ''}
+        </div>
+
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-title">🏋️ Plate Calculator</div>
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+            <input type="number" id="plate-calc-input" placeholder="Target weight (kg)" style="flex:1" oninput="WorkoutModule.calcPlates()" />
+            <div style="font-size:13px;color:var(--text-muted)">Bar: 20kg</div>
+          </div>
+          <div id="plate-calc-result"></div>
+        </div>
+        <div style="height:8px"></div>
+      `;
       return;
     }
 
     // ---- ACTIVE WORKOUT ----
     _startSessionTimer();
-
     const elapsed = _workout.startTime ? Math.round((Date.now() - _workout.startTime) / 60000) : 0;
 
     container.innerHTML = `
-      <!-- Active session header -->
       <div class="card" style="margin-bottom:12px;background:rgba(255,59,59,0.06);border-color:rgba(255,59,59,0.25)">
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div>
-            <div style="font-size:18px;font-weight:900">${_workout.splitDay}</div>
-            <div style="font-size:12px;color:var(--text-muted)">${(_workout.exercises||[]).length} exercises · <span id="session-timer" style="color:var(--accent);font-weight:700">${elapsed}m</span></div>
+            <div style="font-size:18px;font-weight:900">${_workout.splitDay || 'Workout'}</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">
+              ${(_workout.exercises||[]).length} exercises · <span id="session-timer" style="color:var(--accent);font-weight:700">${elapsed}m</span> elapsed
+            </div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn btn-sm btn-ghost" onclick="WorkoutModule.toggleTravel()" style="${_travelMode?'border-color:var(--blue);color:var(--blue)':''}">✈️</button>
-            <button class="btn btn-sm btn-ghost" style="color:var(--text-dim);font-size:11px" onclick="WorkoutModule.discardWorkout()">Discard</button>
-          </div>
+          <button class="btn btn-sm btn-ghost" style="color:var(--text-dim);font-size:12px" onclick="WorkoutModule.discardWorkout()">Discard</button>
         </div>
       </div>
 
-      <!-- Exercises -->
       <div id="exercise-list">
         ${(_workout.exercises||[]).map((ex, idx) => renderExerciseCard(ex, idx)).join('')}
       </div>
 
-      <!-- Add exercise — always visible and prominent -->
-      <button class="btn btn-ghost btn-full" style="margin-bottom:12px;min-height:56px;font-size:16px;border-style:dashed" onclick="WorkoutModule.openExerciseSearch()">+ Add Exercise</button>
+      <button class="btn btn-ghost btn-full" style="margin-bottom:12px;min-height:56px;font-size:16px;font-weight:700;border-style:dashed" onclick="WorkoutModule.openExerciseSearch()">
+        + Add Exercise
+      </button>
 
-      <!-- Finish -->
       <div class="card" style="margin-bottom:12px">
         <div class="card-title">Finish Session</div>
         <div class="field-group" style="margin-bottom:12px">
@@ -203,20 +190,8 @@ window.WorkoutModule = (() => {
         </div>
         <button class="btn btn-primary btn-full" style="min-height:52px;font-size:17px" onclick="WorkoutModule.finishWorkout()">Finish Workout 🏁</button>
       </div>
-
-      <!-- Plate Calculator -->
-      <div class="card">
-        <div class="card-title">🏋️ Plate Calculator</div>
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-          <input type="number" id="plate-calc-input" placeholder="Target kg" style="flex:1" oninput="WorkoutModule.calcPlates()" />
-          <div style="font-size:13px;color:var(--text-muted)">Bar: 20kg</div>
-        </div>
-        <div id="plate-calc-result"></div>
-      </div>
       <div style="height:8px"></div>
     `;
-
-    updateVolumeLandmarks();
   }
 
   function _startSessionTimer() {
