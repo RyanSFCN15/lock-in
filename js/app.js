@@ -559,7 +559,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // Navigate based on hash
     const hash = window.location.hash.replace('#', '');
-    navigateTo(['workout','nutrition','body','more'].includes(hash) ? hash : 'dashboard');
+    navigateTo(['workout','nutrition','cardio','body','more'].includes(hash) ? hash : 'dashboard');
   }
 });
 
@@ -579,6 +579,7 @@ async function initApp(profile) {
   try { Dashboard.init(profile); } catch(e) { console.error('Dashboard init:', e); }
   try { await WorkoutModule.init(profile); } catch(e) { console.error('Workout init:', e); }
   try { await NutritionModule.init(profile); } catch(e) { console.error('Nutrition init:', e); }
+  try { if (window.CardioModule) await CardioModule.init(profile); } catch(e) { console.error('Cardio init:', e); }
   try { BodyModule.init(profile); } catch(e) { console.error('Body init:', e); }
   try { MoreModule.init(profile); } catch(e) { console.error('More init:', e); }
   try { SettingsModule.init(profile); } catch(e) { console.error('Settings init:', e); }

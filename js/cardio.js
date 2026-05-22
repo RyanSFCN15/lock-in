@@ -37,7 +37,7 @@ window.CardioModule = (() => {
   }
 
   async function render() {
-    const container = document.getElementById('body-content');
+    const container = document.getElementById('cardio-content');
     if (!container) return;
 
     let todaySessions = [], lifetimeStats = null;
@@ -251,7 +251,7 @@ window.CardioModule = (() => {
   }
 
   window.addEventListener('sectionShown', (e) => {
-    if (e.detail === 'body') render();
+    if (e.detail === 'cardio') render();
   });
 
   return {

@@ -702,8 +702,7 @@ window.BodyModule = {
     this.currentTab = tab;
     document.querySelectorAll('#section-body .pill').forEach(p => p.classList.remove('selected'));
     if (el) el.classList.add('selected');
-    if (tab === 'recovery')     { if (window.RecoveryModule)     RecoveryModule.render(); }
-    else if (tab === 'cardio')  { if (window.CardioModule)       CardioModule.render(); }
+    if (tab === 'recovery')          { if (window.RecoveryModule)     RecoveryModule.render(); }
     else if (tab === 'measurements') { if (window.MeasurementsModule) MeasurementsModule.render(); }
   },
 };
@@ -729,6 +728,7 @@ window.MoreModule = {
     if (el) el.classList.add('selected');
     if (tab === 'progress')           { if (window.ProgressModule)  ProgressModule.render(); }
     else if (tab === 'stats')         { if (window.StatsModule)     StatsModule.render(); }
+    else if (tab === 'body')          { navigateTo('body'); }
     else if (tab === 'achievements')  { if (window.Gamification)    Gamification.renderAchievementsPage('more-content'); }
     else if (tab === 'settings')      { if (window.SettingsModule)  SettingsModule.render(); }
   },

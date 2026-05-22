@@ -17,10 +17,13 @@ window.AI = (() => {
     _ollamaChecked = true;
     try {
       const res = await Promise.race([
-        fetch(OLLAMA_URL() + '/api/tags', { signal: AbortSignal.timeout(2000) }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2000)),
+        fetch(OLLAMA_URL() + '/api/tags', { signal: AbortSignal.timeout(1500) }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500)),
       ]);
-      _ollamaAvailable = res.ok;
+      if (!res.ok) { _ollamaAvailable = false; return false; }
+      const data = await res.json();
+      // Must have actual Ollama model list — not the SW fallback {error:'Offline'}
+      _ollamaAvailable = Array.isArray(data.models);
     } catch {
       _ollamaAvailable = false;
     }

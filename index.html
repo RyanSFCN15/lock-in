@@ -76,7 +76,16 @@
       <div id="nutrition-content"></div>
     </section>
 
-    <!-- BODY (Measurements + Cardio + Recovery) -->
+    <!-- CARDIO (own section) -->
+    <section id="section-cardio" class="section">
+      <div class="section-header">
+        <h1 class="section-title">Cardio</h1>
+        <button class="btn btn-sm btn-primary" onclick="CardioModule.openLog()">+ Log</button>
+      </div>
+      <div id="cardio-content"></div>
+    </section>
+
+    <!-- BODY (Recovery + Measurements) -->
     <section id="section-body" class="section">
       <div class="section-header">
         <h1 class="section-title">Body</h1>
@@ -84,7 +93,6 @@
       <!-- Sub-tabs -->
       <div class="pill-group" style="margin-bottom:16px">
         <button type="button" class="pill selected" onclick="BodyModule.switchTab('recovery', this)">Recovery</button>
-        <button type="button" class="pill" onclick="BodyModule.switchTab('cardio', this)">Cardio</button>
         <button type="button" class="pill" onclick="BodyModule.switchTab('measurements', this)">Measurements</button>
       </div>
       <div id="body-content"></div>
@@ -98,6 +106,7 @@
       <div class="pill-group" style="margin-bottom:16px">
         <button type="button" class="pill selected" onclick="MoreModule.switchTab('progress', this)">Progress</button>
         <button type="button" class="pill" onclick="MoreModule.switchTab('stats', this)">Stats</button>
+        <button type="button" class="pill" onclick="MoreModule.switchTab('body', this)">Body</button>
         <button type="button" class="pill" onclick="MoreModule.switchTab('achievements', this)">🏆 Badges</button>
         <button type="button" class="pill" onclick="MoreModule.switchTab('settings', this)">Settings</button>
       </div>
@@ -133,13 +142,11 @@
       </svg>
       Nutrition
     </button>
-    <button class="nav-item" data-section="body" onclick="navigateTo('body')">
+    <button class="nav-item" data-section="cardio" onclick="navigateTo('cardio')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="8" r="3"/>
-        <path d="M8.5 14c-1.1.4-2 1.3-2 2.5V21h11v-4.5c0-1.2-.9-2.1-2-2.5"/>
-        <path d="M9 21v-3M15 21v-3"/>
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
       </svg>
-      Body
+      Cardio
     </button>
     <button class="nav-item" data-section="more" onclick="navigateTo('more')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
