@@ -8,7 +8,7 @@ window.AI = (() => {
 
   const OLLAMA_URL = () => window._settings?.ollamaEndpoint || 'http://localhost:11434';
   const OLLAMA_MODEL = 'llama3.2';
-  const GEMINI_MODEL = 'gemini-1.5-flash'; // stable, free-tier compatible
+  const GEMINI_MODEL = 'gemini-2.0-flash'; // stable, free-tier compatible
 
   // --- Detect Ollama ---
 
